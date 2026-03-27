@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: sarak-auth-identity
+Version: 1.0.0
+Summary: Módulo de Identidade e Autenticação Base (Sarak Library)
+Author: Igor Sarak
+Requires-Dist: sqlalchemy
+Requires-Dist: pyjwt
+Requires-Dist: pydantic
+Requires-Dist: supabase
+Dynamic: author
+Dynamic: requires-dist
+Dynamic: summary
