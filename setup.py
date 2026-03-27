@@ -7,9 +7,12 @@ setup(
     package_dir={"": "backend"},
     install_requires=[
         "sqlalchemy",
-        "pyjwt",
+        "python-jose[cryptography]",
         "pydantic",
-        "supabase"
+        "supabase",
+        "fastapi",
+        "passlib[bcrypt]",
+        "bcrypt"
     ],
     author="Igor Sarak",
     description="Módulo de Identidade e Autenticação Base (Sarak Library)",
