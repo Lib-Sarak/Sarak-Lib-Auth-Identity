@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import api, { authApi, UserProfile } from '@sarak/shared/services/api';
+import api, { authApi, UserProfile } from '@sarak/lib-shared/services/api';
 
 interface AuthContextType {
     user: UserProfile | null;

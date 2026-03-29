@@ -1,1 +1,1 @@
-# Sarak-Auth package initialization
+# Sarak-Lib-Auth-Identity package initialization

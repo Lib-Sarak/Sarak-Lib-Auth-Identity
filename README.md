@@ -1,4 +1,4 @@
-# Sarak-Auth-Identity
+# Sarak-Lib-Auth-Identity
 
 Módulo essencial de Identidade e Autenticação Base da Biblioteca Sarak. Este módulo fornece a fundação para controle de acesso, persistência de sessão e proteção de rotas.
 
@@ -13,7 +13,7 @@ Módulo essencial de Identidade e Autenticação Base da Biblioteca Sarak. Este 
 ### Backend (Python)
 Instale o pacote:
 ```bash
-pip install sarak-auth-identity
+pip install sarak-lib-auth-identity
 ```
 
 ### Frontend (React)
@@ -31,9 +31,9 @@ function App() {
 ```
 
 ## 🔗 Conexões
-- **Sarak-Shared:** Utiliza os contratos e modelos base de dados.
-- **Sarak-UI-Core:** Consome os tokens de design para os formulários de login.
-- **Sarak-Auth-Management:** Fornece a base de identidade para a edição de perfil.
+- **Sarak-Lib-Shared:** Utiliza os contratos e modelos base de dados.
+- **Sarak-Lib-UI-Core:** Consome os tokens de design para os formulários de login.
+- **Sarak-Lib-Auth-Management:** Fornece a base de identidade para a edição de perfil.
 
 ---
 **Desenvolvido por Igor Sarak**
