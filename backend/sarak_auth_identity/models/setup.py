@@ -6,9 +6,9 @@ from .database import User
 logger = logging.getLogger(__name__)
 
 def setup_sarak_schemas(db: Session):
-    """Garante que os schemas sarak_identity e sarak_llm existam"""
+    """Garante que os schemas sarak_auth e sarak_llm existam"""
     try:
-        db.execute(text("CREATE SCHEMA IF NOT EXISTS sarak_identity"))
+        db.execute(text("CREATE SCHEMA IF NOT EXISTS sarak_auth"))
         db.execute(text("CREATE SCHEMA IF NOT EXISTS sarak_llm"))
         db.commit()
         logger.info("Schemas Sarak validados com sucesso.")
