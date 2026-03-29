@@ -1,7 +1,0 @@
-sqlalchemy
-python-jose[cryptography]
-pydantic
-supabase
-fastapi
-passlib[bcrypt]
-bcrypt
