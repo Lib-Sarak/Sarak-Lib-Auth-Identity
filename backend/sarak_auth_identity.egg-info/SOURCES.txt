@@ -1,12 +1,15 @@
 README.md
 setup.py
 backend/sarak_auth_identity/__init__.py
+backend/sarak_auth_identity/config.py
 backend/sarak_auth_identity/database.py
 backend/sarak_auth_identity.egg-info/PKG-INFO
 backend/sarak_auth_identity.egg-info/SOURCES.txt
 backend/sarak_auth_identity.egg-info/dependency_links.txt
 backend/sarak_auth_identity.egg-info/requires.txt
 backend/sarak_auth_identity.egg-info/top_level.txt
+backend/sarak_auth_identity/core/__init__.py
+backend/sarak_auth_identity/core/auth_service.py
 backend/sarak_auth_identity/models/__init__.py
 backend/sarak_auth_identity/models/database.py
 backend/sarak_auth_identity/models/setup.py

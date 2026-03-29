@@ -70,7 +70,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return { success: true };
         } catch (error: any) {
             console.error('Login failed:', error);
-            const message = error.response?.data?.detail || 'Usuário ou senha inválidos.';
+            
+            let message = error.response?.data?.detail || 'Usuário ou senha inválidos.';
+            
+            // Se o FastAPI retornar um erro de validação (lista/objeto), converte para string
+            if (typeof message === 'object') {
+                message = 'Erro nos dados de login. Verifique os campos.';
+            }
+            
             return { success: false, error: message };
         }
     };

@@ -4,9 +4,12 @@ Version: 1.0.0
 Summary: Módulo de Identidade e Autenticação Base (Sarak Library)
 Author: Igor Sarak
 Requires-Dist: sqlalchemy
-Requires-Dist: pyjwt
+Requires-Dist: python-jose[cryptography]
 Requires-Dist: pydantic
 Requires-Dist: supabase
+Requires-Dist: fastapi
+Requires-Dist: passlib[bcrypt]
+Requires-Dist: bcrypt
 Dynamic: author
 Dynamic: requires-dist
 Dynamic: summary

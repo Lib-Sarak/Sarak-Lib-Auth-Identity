@@ -19,9 +19,9 @@ def setup_sarak_schemas(db: Session):
 def seed_master_users(db: Session):
     """
     Semeia os usuários mestre (igorsarak@gmail.com e teste)
-    Preservando a lógica de não duplicar se já existirem.
+    Garante que as senhas estejam sempre sincronizadas com o hash atual.
     """
-    from ..core.auth_service import get_user_by_email, get_password_hash
+    from ..core.auth_service import get_user_by_email, get_user_by_username, get_password_hash
     
     master_users = [
         {"email": "igorsarak@gmail.com", "username": "IgorSarak", "password": "Sarak1234"},
@@ -30,7 +30,9 @@ def seed_master_users(db: Session):
     ]
     
     for user_data in master_users:
-        existing = get_user_by_email(db, user_data["email"])
+        # Busca por email ou username para evitar conflitos de unicidade
+        existing = get_user_by_email(db, user_data["email"]) or get_user_by_username(db, user_data["username"])
+        
         if not existing:
             new_user = User(
                 email=user_data["email"],
@@ -40,6 +42,11 @@ def seed_master_users(db: Session):
             db.add(new_user)
             logger.info(f"Usuário mestre semeado: {user_data['email']}")
         else:
-            logger.info(f"Usuário mestre já existe: {user_data['email']}")
+            # Força a atualização da senha para o hash atual (SHA256+Bcrypt)
+            # e sincroniza email/username caso tenham mudado
+            existing.password = get_password_hash(user_data["password"])
+            existing.email = user_data["email"]
+            existing.username = user_data["username"]
+            logger.info(f"Usuário mestre sincronizado/atualizado: {user_data['email']}")
             
     db.commit()

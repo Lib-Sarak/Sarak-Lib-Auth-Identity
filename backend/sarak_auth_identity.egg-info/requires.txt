@@ -1,4 +1,7 @@
 sqlalchemy
-pyjwt
+python-jose[cryptography]
 pydantic
 supabase
+fastapi
+passlib[bcrypt]
+bcrypt
