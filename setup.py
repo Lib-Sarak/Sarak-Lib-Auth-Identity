@@ -7,8 +7,12 @@ setup(
     package_dir={"": "backend"},
     install_requires=[
         "sqlalchemy",
+        "psycopg2-binary",
         "python-jose[cryptography]",
         "pydantic",
+        "pydantic-settings",
+        "python-dotenv",
+        "python-multipart",
         "supabase",
         "fastapi",
         "passlib[bcrypt]",
