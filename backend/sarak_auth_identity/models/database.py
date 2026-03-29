@@ -10,7 +10,7 @@ from sarak_auth_identity.database import Base
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = {'schema': 'sarak_identity'}
+    __table_args__ = {'schema': 'sarak_auth'}
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
@@ -37,7 +37,7 @@ class ApiKey(Base):
     
     __table_args__ = (
         UniqueConstraint('user_id', 'service', name='unique_user_service_key'),
-        {'schema': 'sarak_identity'}
+        {'schema': 'sarak_auth'}
     )
 
 class TokenUsage(Base):
@@ -55,6 +55,13 @@ class TokenUsage(Base):
     
     user = relationship("User", backref="token_usage")
     
-    __table_args__ = {'schema': 'sarak_identity'}
+    __table_args__ = {'schema': 'sarak_auth'}
+
+def setup_identity_db(engine):
+    """Inicializa o schema e as tabelas deste módulo."""
+    from sarak_auth_identity.database import Base, ensure_schema_exists
+    ensure_schema_exists(engine, "sarak_auth")
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, ApiKey.__table__, TokenUsage.__table__])
+
 
 
