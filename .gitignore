@@ -11,3 +11,8 @@ node_modules/
 *.sqlite
 
 *.log
+
+
+# Gerados no packaging
+build/
+dist/
