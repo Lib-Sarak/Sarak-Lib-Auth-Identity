@@ -12,8 +12,6 @@ setup(
         "pydantic",
         "pydantic-settings",
         "python-dotenv",
-        "python-multipart",
-        "supabase",
         "fastapi",
         "passlib[bcrypt]",
         "bcrypt"
