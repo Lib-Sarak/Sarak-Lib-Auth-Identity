@@ -42,8 +42,11 @@ def _pre_hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    Verifica se a senha está correta.
+    Verifica se a senha está correta com segurança contra crash por inputs inválidos.
     """
+    if not plain_password or not hashed_password:
+        return False
+        
     try:
         pre_hashed = _pre_hash_password(plain_password)
         # Verifica usando bcrypt direto se possível, fallback para pwd_context
@@ -89,7 +92,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def verify_token(token: str) -> Optional[dict]:
-    """Verifica e decodifica token JWT"""
+    """Verifica e decodifica token JWT com segurança para inputs nulos."""
+    if not token:
+        return None
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
