@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from './AuthContext';
+import { useSarak } from '@sarak/lib-shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Cpu,
@@ -32,7 +32,7 @@ const Login: React.FC<{ branding: Branding }> = ({ branding }) => {
     const [error, setError] = useState<string>('');
     const [isPending, setIsPending] = useState(false);
 
-    const { login } = useAuth();
+    const { login } = useSarak();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -44,7 +44,7 @@ const Login: React.FC<{ branding: Branding }> = ({ branding }) => {
         setError('');
         setIsPending(true);
 
-        const result = await login(username, password);
+        const result = await login({ email: username, password });
 
         if (result.success) {
             navigate(from, { replace: true });
