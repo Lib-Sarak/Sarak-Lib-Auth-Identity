@@ -188,13 +188,19 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 security = HTTPBearer()
 
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(lambda: None)
+    db: Session = Depends(lambda: None),
 ):
     """
-    Dependency para obter usuário atual a partir do token JWT.
-    Nota: O 'db' deve ser injetado pela aplicação FastAPI que utiliza este módulo.
+    Implementação real de autenticação via JWT.
+
+    Esta função é registrada via dependency_overrides no Gateway/Framework:
+        app.dependency_overrides[router.get_current_user] = auth_service.get_current_user
+
+    O FastAPI resolve o 'db' corretamente quando o override está ativo,
+    pois o Gateway substitui o stub com uma função que injeta a sessão real.
     """
     token = credentials.credentials
     payload = verify_token(token)
@@ -204,10 +210,8 @@ def get_current_user(
             detail="Token inválido ou expirado",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     user_id = payload.get("sub")
-    # Importação local para evitar circular dependência se necessário
-    from ..core.auth_service import get_user_by_id
     user = get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(
@@ -215,6 +219,5 @@ def get_current_user(
             detail="Usuário não encontrado",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    return user
 
+    return user
