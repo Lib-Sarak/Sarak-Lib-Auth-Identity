@@ -25,7 +25,7 @@ function cn(...inputs: any[]) {
     return twMerge(clsx(inputs));
 }
 
-const Login: React.FC<{ branding: Branding }> = ({ branding }) => {
+export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = ({ branding, onSuccess }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -237,4 +237,4 @@ const Login: React.FC<{ branding: Branding }> = ({ branding }) => {
     );
 };
 
-export default Login;
+// Removida exportação default para consistência do ecossistema Sarak

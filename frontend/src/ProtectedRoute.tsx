@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const { token, loading } = useAuth();
     const location = useLocation();
 
@@ -23,4 +23,4 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return children;
 };
 
-export default ProtectedRoute;
+// Removida exportação default para consistência do ecossistema Sarak
