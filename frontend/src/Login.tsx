@@ -55,14 +55,14 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
     };
 
     return (
-        <div className="min-h-screen w-full flex bg-[#020617] text-slate-200 selection:bg-blue-500/30 font-sans overflow-hidden">
+        <div className="min-h-screen w-full flex bg-theme-body text-theme-text selection:bg-theme-primary/30 font-sans overflow-hidden">
 
             {/* Left Side - Hero Section */}
-            <div className="hidden lg:flex lg:w-3/5 relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950/20 items-center justify-center p-12">
+            <div className="hidden lg:flex lg:w-3/5 relative overflow-hidden bg-gradient-to-br from-theme-body via-theme-body to-theme-primary/20 items-center justify-center p-12">
 
                 {/* Animated Decorative Background */}
                 <div className="absolute inset-0 opacity-20">
-                    <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/20 rounded-full blur-[120px] animate-pulse"></div>
+                    <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-theme-primary/20 rounded-full blur-[120px] animate-pulse"></div>
                     <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-500/10 rounded-full blur-[120px] animate-pulse [animation-delay:2s]"></div>
                 </div>
 
@@ -75,7 +75,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                         initial={{ opacity: 0, scale: 0.8, rotate: -10 }}
                         animate={{ opacity: 1, scale: 1, rotate: 0 }}
                         transition={{ duration: 0.8, type: "spring" }}
-                        className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/20 mb-8 border border-blue-400/20"
+                        className="w-24 h-24 bg-gradient-to-tr from-theme-primary to-theme-primary/60 rounded-3xl flex items-center justify-center shadow-2xl shadow-theme-primary/20 mb-8 border border-theme-primary/20"
                     >
                         {branding?.logo ? (
                             <img src={branding.logo} alt="Logo" className="w-12 h-12 object-contain" />
@@ -88,7 +88,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2, duration: 0.8 }}
-                        className="text-6xl font-black tracking-tighter mb-6 bg-gradient-to-r from-blue-400 via-white to-blue-400 bg-[length:200%_auto] animate-gradient-text bg-clip-text text-transparent uppercase"
+                        className="text-6xl font-black tracking-tighter mb-6 bg-gradient-to-r from-theme-primary via-white to-theme-primary bg-[length:200%_auto] animate-gradient-text bg-clip-text text-transparent uppercase"
                     >
                         {branding?.name}
                     </motion.h1>
@@ -101,20 +101,20 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                         transition={{ delay: 0.5, duration: 1 }}
                         className="mt-12 flex gap-4"
                     >
-                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800/40 border border-slate-700/50 backdrop-blur-md">
-                            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                            <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">Secure</span>
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-full sarak-glass bg-theme-card border border-theme-border backdrop-blur-md">
+                            <ShieldCheck className="w-4 h-4 text-theme-secondary" />
+                            <span className="text-xs font-bold text-theme-muted uppercase tracking-widest">Secure</span>
                         </div>
-                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800/40 border border-slate-700/50 backdrop-blur-md">
-                            <Activity className="w-4 h-4 text-blue-400" />
-                            <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">Neural</span>
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-full sarak-glass bg-theme-card border border-theme-border backdrop-blur-md">
+                            <Activity className="w-4 h-4 text-theme-primary" />
+                            <span className="text-xs font-bold text-theme-muted uppercase tracking-widest">Neural</span>
                         </div>
                     </motion.div>
                 </div>
             </div>
 
             {/* Right Side - Form Section */}
-            <div className="w-full lg:w-2/5 flex items-center justify-center p-8 bg-[#020617] border-l border-slate-900 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]">
+            <div className="w-full lg:w-2/5 flex items-center justify-center p-8 bg-theme-body border-l border-theme-border shadow-[-20px_0_50px_rgba(0,0,0,0.5)]">
 
                 <motion.div
                     initial={{ opacity: 0, x: 20 }}
@@ -134,8 +134,8 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                     </div>
 
                     <div className="mb-8">
-                        <h3 className="text-3xl font-black text-white mb-2 tracking-tight">Login do Sistema</h3>
-                        <p className="text-slate-500 font-medium">Insira suas credenciais para continuar.</p>
+                        <h3 className="text-3xl font-black text-theme-text mb-2 tracking-tight">Login do Sistema</h3>
+                        <p className="text-theme-muted font-medium">Insira suas credenciais para continuar.</p>
                     </div>
 
                     <AnimatePresence mode="wait">
@@ -164,7 +164,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                                     required
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    className="block w-full pl-11 pr-4 py-4 bg-slate-900/50 border border-slate-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-700 text-white font-medium"
+                                    className="block w-full pl-11 pr-4 py-4 sarak-glass bg-theme-card border border-theme-border rounded-2xl focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
                                     placeholder="Ex: Igor ou seu@email.com"
                                     autoComplete="off"
                                 />
@@ -202,7 +202,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                         <button
                             type="submit"
                             disabled={isPending}
-                            className="w-full mt-4 flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-blue-900/10 hover:shadow-blue-500/20 active:scale-[0.98]"
+                            className="w-full mt-4 flex items-center justify-center gap-2 py-4 bg-theme-primary hover:opacity-90 disabled:bg-theme-card disabled:text-theme-muted text-theme-text rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-theme-primary/10 active:scale-[0.98]"
                         >
                             {isPending ? (
                                 <Loader2 className="w-5 h-5 animate-spin" />
