@@ -9,12 +9,13 @@ setup(
         "sqlalchemy",
         "psycopg2-binary",
         "python-jose[cryptography]",
-        "pydantic",
+        "pydantic[email]",
         "pydantic-settings",
         "python-dotenv",
         "fastapi",
         "passlib[bcrypt]",
-        "bcrypt"
+        "bcrypt",
+        "email-validator"
     ],
     author="Igor Sarak",
     description="Módulo de Identidade e Autenticação Base (Sarak Library)",
