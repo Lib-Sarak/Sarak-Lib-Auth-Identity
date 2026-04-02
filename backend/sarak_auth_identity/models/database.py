@@ -43,7 +43,7 @@ class ApiKey(Base):
 
 def setup_identity_db(engine):
     """Inicializa o schema e as tabelas deste módulo."""
-    from sarak_auth_identity.database import Base, ensure_schema_exists
+    from sarak_shared import Base, ensure_schema_exists
     ensure_schema_exists(engine, "sarak_auth")
     Base.metadata.create_all(bind=engine, tables=[User.__table__, ApiKey.__table__])
 
