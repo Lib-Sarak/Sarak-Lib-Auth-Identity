@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
-from sarak_auth_identity.database import Base
+from sarak_shared import Base, ensure_schema_exists
 
 
 

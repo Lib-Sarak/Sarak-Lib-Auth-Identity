@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     Configurações base para o módulo de Identidade e Autenticação.
     Pode ser estendido por cada microsserviço.
     """
-    jwt_secret_key: str = "z4K9X8qL2mP7nR5tY1vW3bN6jF0hS9aD4cE7gU2iO5kM"
+    jwt_secret_key: Optional[str] = None
     database_url: Optional[str] = None
     
     class Config:

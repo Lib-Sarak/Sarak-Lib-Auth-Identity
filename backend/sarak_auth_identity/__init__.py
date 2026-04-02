@@ -6,6 +6,11 @@ Padrão Plug & Play: O módulo se registra automaticamente ao ser importado.
 from sarak_shared.registry import register_sarak_router, register_sarak_db_setup
 from sarak_auth_identity.models.database import User, ApiKey, setup_identity_db
 from sarak_auth_identity.api.router import router, get_db, get_current_user
+from sarak_shared import register_sarak_router, register_sarak_db_setup
+
+# Auto-registro Plug & Play
+register_sarak_router(router, prefix="/api/auth", tags=["Identity"])
+register_sarak_db_setup(setup_identity_db)
 
 # Auto-Registro no Ecossistema Sarak
 register_sarak_router(router, prefix=\"/api/v1/auth\", tags=[\"Security\"])
