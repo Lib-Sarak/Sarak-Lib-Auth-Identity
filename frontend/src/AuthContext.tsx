@@ -49,18 +49,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const login = async (identification: string, password?: string) => {
         try {
-            // No backend, o campo 'email' é usado para o identificador (pode ser o nome 'Igor')
-            const response = await authApi.login({ email: identification, password });
-            const { access_token, user_id, username } = response;
+            // No backend, o contrato Pydantic espera 'username'
+            const response = await authApi.login({ username: identification, password });
+            const { access_token, user_id, username: uName } = response;
 
-            // Persiste utilizando chaves genéricas
-            const activeTokenKey = (window as any).SARAK_AUTH_KEY || 'auth_token';
-            const activeUserIdKey = 'user_id';
-            const activeUsernameKey = 'username';
+            // Sincronização com a Sarak Matrix v3 (SarakProvider)
+            const isUnified = (window as any).SARAK_UNIFIED_AUTH === true;
+            const systemId = (window as any).SARAK_SYSTEM_ID || 'sarak';
+            
+            const activeTokenKey = isUnified ? 'sarak_token' : `${systemId}_token`;
+            const activeUserKey = isUnified ? 'sarak_user' : `${systemId}_user`;
 
             localStorage.setItem(activeTokenKey, access_token);
-            localStorage.setItem(activeUserIdKey, user_id);
-            localStorage.setItem(activeUsernameKey, username);
+            if (response.user) {
+                localStorage.setItem(activeUserKey, JSON.stringify(response.user));
+            }
 
             setToken(access_token);
             // Pequeno delay e reload forçado para limpar interferência do Google Translate no DOM
