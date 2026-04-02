@@ -46,7 +46,8 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
         setError('');
         setIsPending(true);
 
-        const result = await login({ email: username, password });
+        // Correção Matrix: Passar argumentos posicionais para evitar objeto aninhado (Fix 422)
+        const result = await login(username, password);
 
         if (result.success) {
             navigate(from, { replace: true });
