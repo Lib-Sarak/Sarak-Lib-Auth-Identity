@@ -49,7 +49,9 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
         // Correção Matrix: Passar argumentos posicionais para evitar objeto aninhado (Fix 422)
         const result = await login(username, password);
 
-        if (result.success) {
+        if (result.success && result.token) {
+            // Sincronização em tempo real: avisar o Sarak OS que temos um novo Token/User
+            syncSarak(result.token, result.user);
             navigate(from, { replace: true });
         } else {
             setError(result.error || 'Erro ao realizar login');

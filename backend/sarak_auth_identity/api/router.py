@@ -6,22 +6,19 @@ from pydantic import BaseModel, EmailStr
 from ..core import auth_service
 from ..models.database import User
 
-# ── Dependências Sobrescrevíveis pelo Gateway ─────────────────────────────────
+from sarak_shared.database import get_sarak_db
 
 def get_db():
-    """
-    Stub de sessão DB. O Gateway deve sobrescrever via:
-    app.dependency_overrides[get_db] = lambda: get_sarak_db()
-    """
-    yield None
+    """Busca a sessão de banco de dados diretamente do Sarak OS Core."""
+    yield from get_sarak_db()
 
 
-def get_current_user(db: Session = Depends(get_db)):
-    """
-    Stub de autenticação. O Gateway deve sobrescrever via:
-    app.dependency_overrides[get_current_user] = real_get_current_user
-    """
-    yield None
+async def get_current_user(
+    credentials = Depends(auth_service.security),
+    db: Session = Depends(get_db)
+):
+    """Implementação real de busca de usuário no schema ativo."""
+    return await auth_service.get_current_user(credentials=credentials, db=db)
 
 
 # ── Router ────────────────────────────────────────────────────────────────────

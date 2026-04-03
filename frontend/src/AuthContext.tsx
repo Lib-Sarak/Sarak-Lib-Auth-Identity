@@ -5,7 +5,7 @@ interface AuthContextType {
     user: UserProfile | null;
     token: string | null;
     loading: boolean;
-    login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+    login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; token?: string; user?: any }>;
     logout: () => void;
 }
 
@@ -66,11 +66,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
 
             setToken(access_token);
-            // Pequeno delay e reload forçado para limpar interferência do Google Translate no DOM
-            setTimeout(() => {
-                window.location.href = window.location.pathname === '/login' ? '/' : window.location.pathname;
-            }, 100);
-            return { success: true };
+            
+            // Retornamos os dados para que o componente Login possa sincronizar o Sarak OS Core
+            return { 
+                success: true, 
+                token: access_token, 
+                user: response.user || { id: user_id, username: uName } 
+            };
         } catch (error: any) {
             console.error('Login failed:', error);
             
