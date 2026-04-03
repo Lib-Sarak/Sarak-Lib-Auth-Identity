@@ -14,17 +14,23 @@ import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import func
+import os
 
 logger = logging.getLogger(__name__)
 
 # Configuração de hash de senha
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Configuração JWT
-SECRET_KEY = getattr(settings, 'jwt_secret_key', None)
+# Configuração JWT (Sarak Matrix v3.2.0)
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 if not SECRET_KEY:
-    logger.warning("[Sarak Auth] JWT_SECRET_KEY não encontrada. Usando chave padrão de DEV.")
-    SECRET_KEY = "SarakMatrix-SecurityKey-2026-v1"
+    SECRET_KEY = getattr(settings, 'jwt_secret_key', None)
+
+if not SECRET_KEY:
+    logger.warning("[Sarak Auth] JWT_SECRET_KEY não encontrada no ENV ou Settings. Usando fallback de DEV.")
+    SECRET_KEY = "SarakMatrixSecurityKey2026OperationalKeyV1"
+else:
+    logger.info(f"[Sarak Auth] JWT_SECRET_KEY carregada com sucesso (Início: {SECRET_KEY[:5]}...)")
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 dias

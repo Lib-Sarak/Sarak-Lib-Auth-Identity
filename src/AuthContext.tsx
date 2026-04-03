@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import api, { authApi, UserProfile } from '@sarak/lib-shared/services/api';
+import { api, authApi } from '@sarak/lib-shared';
+
+export interface UserProfile {
+    id: string | number;
+    username: string;
+    email?: string;
+    full_name?: string;
+    [key: string]: any;
+}
 
 interface AuthContextType {
     user: UserProfile | null;
@@ -33,8 +41,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const fetchMe = async () => {
             if (token) {
                 try {
-                    const profile = await authApi.getProfile();
-                    setUser(profile);
+                    const response = await authApi.get('/api/auth/me');
+                    setUser(response.data);
                 } catch (e) {
                     console.error("Error loading profile:", e);
                     logout();
@@ -50,8 +58,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const login = async (identification: string, password?: string) => {
         try {
             // No backend, o contrato Pydantic espera 'username'
-            const response = await authApi.login({ username: identification, password });
-            const { access_token, user_id, username: uName } = response;
+            const response = await authApi.post('/api/auth/login', { username: identification, password });
+            const { access_token, user: userData } = response.data;
 
             // Sincronização com a Sarak Matrix v3 (SarakProvider)
             const isUnified = (window as any).SARAK_UNIFIED_AUTH === true;
@@ -61,8 +69,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const activeUserKey = isUnified ? 'sarak_user' : `${systemId}_user`;
 
             localStorage.setItem(activeTokenKey, access_token);
-            if (response.user) {
-                localStorage.setItem(activeUserKey, JSON.stringify(response.user));
+            if (userData) {
+                localStorage.setItem(activeUserKey, JSON.stringify(userData));
             }
 
             setToken(access_token);
@@ -71,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return { 
                 success: true, 
                 token: access_token, 
-                user: response.user || { id: user_id, username: uName } 
+                user: userData 
             };
         } catch (error: any) {
             console.error('Login failed:', error);

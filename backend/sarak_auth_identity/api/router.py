@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel, EmailStr
+import uuid
 
 from ..core import auth_service
 from ..models.database import User
@@ -34,6 +35,8 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    user_id: Optional[str] = None
+    username: Optional[str] = None
 
 
 class UserCreate(BaseModel):
@@ -43,7 +46,7 @@ class UserCreate(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: str
+    id: uuid.UUID
     username: str
     email: str
     is_active: bool
@@ -62,7 +65,12 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = auth_service.create_access_token(data={"sub": str(user.id)})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": str(user.id),
+        "username": user.username,
+    }
 
 
 @router.post("/register", response_model=UserResponse)

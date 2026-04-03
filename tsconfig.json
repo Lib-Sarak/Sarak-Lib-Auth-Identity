@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "moduleResolution": "node",
+    "skipLibCheck": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "esModuleInterop": true,
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@sarak/lib-shared": ["../Sarak-Lib-Shared/src/index.ts"],
+      "@sarak/lib-ui-core": ["../Sarak-Lib-UI-Core/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

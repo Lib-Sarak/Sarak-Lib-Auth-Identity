@@ -3,15 +3,48 @@
   "version": "2.2.0",
   "private": true,
   "type": "module",
-  "main": "frontend/src/index.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --minify --external react,react-dom,react-router-dom,framer-motion,lucide-react,@sarak/lib-shared,@sarak/lib-ui-core",
+    "prepublishOnly": "npm run build"
+  },
   "dependencies": {
+    "@sarak/lib-shared": "github:Lib-Sarak/Sarak-Lib-Shared",
+    "@sarak/lib-ui-core": "github:Lib-Sarak/Sarak-Lib-UI-Core",
     "axios": "^1.6.0",
-    "jwt-decode": "^4.0.0",
-    "react": "^18.0.0",
+    "jwt-decode": "^4.0.0"
+  },
+  "peerDependencies": {
+    "clsx": ">=2.0.0",
+    "framer-motion": ">=11.0.0",
+    "lucide-react": ">=0.284.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "react-router-dom": ">=6.0.0",
+    "tailwind-merge": ">=2.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@types/react-router-dom": "^5.3.3",
     "clsx": "^2.0.0",
-    "tailwind-merge": "^2.0.0",
-    "lucide-react": "^0.284.0",
     "framer-motion": "^11.0.0",
-    "react-router-dom": "^6.20.0"
+    "lucide-react": "^0.284.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.20.0",
+    "tailwind-merge": "^2.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
   }
 }
