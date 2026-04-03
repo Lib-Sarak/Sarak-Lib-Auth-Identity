@@ -15,4 +15,4 @@ node_modules/
 
 # Gerados no packaging
 build/
-dist/
+# dist/
