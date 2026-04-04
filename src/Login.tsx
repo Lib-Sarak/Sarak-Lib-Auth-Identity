@@ -54,6 +54,8 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                 const loginResult = await login(username, password);
                 if (loginResult.success && loginResult.token) {
                     syncSarak(loginResult.token, loginResult.user);
+                    onSuccess?.(); // Notifica sucesso
+                    setIsPending(false); // Libera o estado
                     navigate(from, { replace: true });
                 }
             } else {
@@ -64,6 +66,8 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
             const result = await login(username, password);
             if (result.success && result.token) {
                 syncSarak(result.token, result.user);
+                onSuccess?.(); // Notifica sucesso
+                setIsPending(false); // Libera o estado
                 navigate(from, { replace: true });
             } else {
                 setError(result.error || 'Erro ao realizar login');
