@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from './AuthContext';
 import { useSarak } from '@sarak/lib-shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -34,8 +33,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
     const [error, setError] = useState<string>('');
     const [isPending, setIsPending] = useState(false);
 
-    const { login, register } = useAuth();
-    const { login: syncSarak } = useSarak();
+    const { loginAPI, registerAPI, login: syncSarak } = useSarak();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -48,12 +46,11 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
         setIsPending(true);
 
         if (isRegistering) {
-            const regResult = await register(username, password);
+            const regResult = await registerAPI(username, password);
             if (regResult.success) {
                 // Após registro, logar automaticamente
-                const loginResult = await login(username, password);
+                const loginResult = await loginAPI(username, password);
                 if (loginResult.success && loginResult.token) {
-                    syncSarak(loginResult.token, loginResult.user);
                     onSuccess?.(); // Notifica sucesso
                     setIsPending(false); // Libera o estado
                     navigate(from, { replace: true });
@@ -63,9 +60,8 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                 setIsPending(false);
             }
         } else {
-            const result = await login(username, password);
+            const result = await loginAPI(username, password);
             if (result.success && result.token) {
-                syncSarak(result.token, result.user);
                 onSuccess?.(); // Notifica sucesso
                 setIsPending(false); // Libera o estado
                 navigate(from, { replace: true });
@@ -136,7 +132,11 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
             </div>
 
             {/* Right Side - Form Section */}
-            <div className="w-full lg:w-2/5 flex items-center justify-center p-8 bg-theme-body border-l border-theme-border shadow-[-20px_0_50px_rgba(0,0,0,0.5)]">
+            <div className="w-full lg:w-2/5 flex items-center justify-center p-8 bg-theme-body border-l border-theme-border shadow-[-20px_0_50px_rgba(0,0,0,0.5)] relative">
+                
+                {/* Floating Elements in Background (Glassy Effect) */}
+                <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-theme-primary/10 rounded-full blur-3xl animate-pulse"></div>
+                <div className="absolute bottom-1/4 left-1/4 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl animate-pulse [animation-delay:3s]"></div>
 
                 <motion.div
                     initial={{ opacity: 0, x: 20 }}
@@ -211,7 +211,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="block w-full pl-11 pr-12 py-4 bg-slate-900/50 border border-slate-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder:text-slate-700 text-white font-medium"
+                                    className="block w-full pl-11 pr-12 py-4 sarak-glass bg-theme-card border border-theme-border rounded-2xl focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
                                     placeholder="••••••••"
                                     autoComplete="new-password"
                                 />

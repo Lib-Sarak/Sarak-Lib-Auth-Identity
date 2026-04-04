@@ -11,6 +11,5 @@ registerSarakModule({
 });
 
 export * from "./Login"; 
-export * from "./AuthContext"; 
 export * from "./ProtectedRoute";
-export * from "./ChangePasswordModal";
+export { default as ChangePasswordModal } from "./ChangePasswordModal";
