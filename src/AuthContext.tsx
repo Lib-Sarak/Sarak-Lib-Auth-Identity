@@ -13,6 +13,7 @@ interface AuthContextType {
     user: UserProfile | null;
     token: string | null;
     loading: boolean;
+    register: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
     login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; token?: string; user?: any }>;
     logout: () => void;
 }
@@ -54,6 +55,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
         fetchMe();
     }, [token]);
+
+    const register = async (email: string, password: string) => {
+        try {
+            // Sarak Standard: Usar email como username no primeiro acesso
+            await authApi.post('/api/auth/register', { 
+                username: email, 
+                email: email, 
+                password 
+            });
+            return { success: true };
+        } catch (error: any) {
+            console.error('Registration failed:', error);
+            const message = error.response?.data?.detail || 'Erro ao criar conta.';
+            return { success: false, error: message };
+        }
+    };
 
     const login = async (identification: string, password?: string) => {
         try {
@@ -116,6 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         token,
         loading,
+        register,
         login,
         logout
     }), [user, token, loading]);

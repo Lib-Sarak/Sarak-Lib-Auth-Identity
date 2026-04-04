@@ -27,13 +27,14 @@ function cn(...inputs: any[]) {
 }
 
 export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = ({ branding, onSuccess }) => {
+    const [isRegistering, setIsRegistering] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState<string>('');
     const [isPending, setIsPending] = useState(false);
 
-    const { login } = useAuth();
+    const { login, register } = useAuth();
     const { login: syncSarak } = useSarak();
     const navigate = useNavigate();
     const location = useLocation();
@@ -46,16 +47,28 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
         setError('');
         setIsPending(true);
 
-        // Correção Matrix: Passar argumentos posicionais para evitar objeto aninhado (Fix 422)
-        const result = await login(username, password);
-
-        if (result.success && result.token) {
-            // Sincronização em tempo real: avisar o Sarak OS que temos um novo Token/User
-            syncSarak(result.token, result.user);
-            navigate(from, { replace: true });
+        if (isRegistering) {
+            const regResult = await register(username, password);
+            if (regResult.success) {
+                // Após registro, logar automaticamente
+                const loginResult = await login(username, password);
+                if (loginResult.success && loginResult.token) {
+                    syncSarak(loginResult.token, loginResult.user);
+                    navigate(from, { replace: true });
+                }
+            } else {
+                setError(regResult.error || 'Erro ao criar conta');
+                setIsPending(false);
+            }
         } else {
-            setError(result.error || 'Erro ao realizar login');
-            setIsPending(false);
+            const result = await login(username, password);
+            if (result.success && result.token) {
+                syncSarak(result.token, result.user);
+                navigate(from, { replace: true });
+            } else {
+                setError(result.error || 'Erro ao realizar login');
+                setIsPending(false);
+            }
         }
     };
 
@@ -139,8 +152,12 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                     </div>
 
                     <div className="mb-8">
-                        <h3 className="text-3xl font-black text-theme-text mb-2 tracking-tight">Login do Sistema</h3>
-                        <p className="text-theme-muted font-medium">Insira suas credenciais para continuar.</p>
+                        <h3 className="text-3xl font-black text-theme-text mb-2 tracking-tight">
+                            {isRegistering ? 'Criação de Conta' : 'Login do Sistema'}
+                        </h3>
+                        <p className="text-theme-muted font-medium">
+                            {isRegistering ? 'Digite seu e-mail e escolha uma senha segura.' : 'Insira suas credenciais para continuar.'}
+                        </p>
                     </div>
 
                     <AnimatePresence mode="wait">
@@ -159,18 +176,18 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Usuário / E-mail</label>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">E-mail de Acesso</label>
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-blue-500 text-slate-500">
                                     <User className="h-5 w-5" />
                                 </div>
                                 <input
-                                    type="text"
+                                    type="email"
                                     required
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     className="block w-full pl-11 pr-4 py-4 sarak-glass bg-theme-card border border-theme-border rounded-2xl focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
-                                    placeholder="Ex: Igor ou seu@email.com"
+                                    placeholder="seu@email.com"
                                     autoComplete="off"
                                 />
                             </div>
@@ -179,7 +196,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between px-1">
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Senha</label>
-                                <button type="button" className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors">Esqueceu?</button>
+                                {!isRegistering && <button type="button" className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors">Esqueceu?</button>}
                             </div>
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-blue-500 text-slate-500">
@@ -212,28 +229,36 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                             {isPending ? (
                                 <Loader2 className="w-5 h-5 animate-spin" />
                             ) : (
-                                <>Acessar Sistema <ChevronRight className="w-4 h-4" /></>
+                                <>{isRegistering ? 'Criar Minha Conta' : 'Acessar Sistema'} <ChevronRight className="w-4 h-4" /></>
                             )}
                         </button>
                     </form>
 
                     <div className="mt-8 space-y-3">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setUsername('usuario@teste.com');
-                                setPassword('test1234');
-                            }}
-                            className="w-full py-3 bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/50 text-blue-400 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all"
-                        >
-                            Entrar como usuário teste
-                        </button>
+                        {!isRegistering && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setUsername('usuario@teste.com');
+                                    setPassword('test1234');
+                                }}
+                                className="w-full py-3 bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/50 text-blue-400 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all"
+                            >
+                                Entrar como usuário teste
+                            </button>
+                        )}
 
                     </div>
 
                     <div className="mt-10 pt-8 border-t border-slate-900 text-center">
                         <p className="text-slate-500 text-sm font-medium">
-                            Não tem uma conta? <button className="text-blue-500 font-bold hover:underline">Solicitar acesso</button>
+                            {isRegistering ? 'Já tem uma conta?' : 'Não tem uma conta?'} 
+                            <button 
+                                onClick={() => setIsRegistering(!isRegistering)}
+                                className="ml-1 text-blue-500 font-bold hover:underline"
+                            >
+                                {isRegistering ? 'Fazer Login' : 'Primeiro Acesso'}
+                            </button>
                         </p>
                     </div>
                 </motion.div>
