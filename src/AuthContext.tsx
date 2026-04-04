@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import { api, authApi } from '@sarak/lib-shared';
+import { api, authApi, useSarak } from '@sarak/lib-shared';
 
 export interface UserProfile {
     id: string | number;
@@ -29,106 +29,46 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-    // Chaves padronizadas para o Ecossistema Sarak Matrix
-    const tokenKey = 'sarak_token';
-    const userKey = 'sarak_user';
+    // Consumir o estado central do SarakProvider para evitar redundância e loops
+    const { 
+        user, 
+        token, 
+        loading: sarakLoading, 
+        login: sarakLogin, 
+        logout: sarakLogout,
+        loginAPI,
+        registerAPI
+    } = useSarak();
 
-    const [user, setUser] = useState<UserProfile | null>(() => {
-        const saved = localStorage.getItem(userKey);
-        if (!saved || saved === 'undefined') return null;
-        try {
-            return JSON.parse(saved);
-        } catch (e) {
-            console.error("Failed to parse user from localStorage", e);
-            return null;
-        }
-    });
-    
-    const [token, setToken] = useState<string | null>(localStorage.getItem(tokenKey));
-    const [loading, setLoading] = useState(true);
+    const [internalLoading, setInternalLoading] = useState(false);
 
-    // Load user on startup or token change
-    useEffect(() => {
-        const fetchMe = async () => {
-            if (token) {
-                // Atualiza o header do Axios para garantir que a próxima chamada tenha o token
-                authApi.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-                try {
-                    const response = await authApi.get('/api/auth/me');
-                    setUser(response.data);
-                    localStorage.setItem(userKey, JSON.stringify(response.data));
-                } catch (e) {
-                    console.error("Error loading profile:", e);
-                    logout();
-                }
-            } else {
-                setUser(null);
-                delete authApi.defaults.headers.common['Authorization'];
-            }
-            setLoading(false);
-        };
-        fetchMe();
-    }, [token]);
-
-    const register = async (email: string, password: string) => {
-        try {
-            await authApi.post('/api/auth/register', { 
-                username: email, 
-                email: email, 
-                password 
-            });
-            return { success: true };
-        } catch (error: any) {
-            console.error('Registration failed:', error);
-            return { success: false, error: error.response?.data?.detail || 'Erro ao criar conta.' };
-        }
-    };
+    // O loading final é a combinação do motor central e inicialização local se houver
+    const loading = sarakLoading || internalLoading;
 
     const login = async (identification: string, password?: string) => {
+        setInternalLoading(true);
         try {
-            const response = await authApi.post('/api/auth/login', { username: identification, password });
-            const { access_token, user: userData } = response.data;
-
-            // Gravação Simétrica (Mesma chave da leitura)
-            localStorage.setItem(tokenKey, access_token);
-            if (userData) {
-                localStorage.setItem(userKey, JSON.stringify(userData));
-            }
-
-            // Atualiza o estado e o header global IMEDIATAMENTE
-            authApi.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-            setUser(userData);
-            setToken(access_token);
-            setLoading(false);
-            
-            return { 
-                success: true, 
-                token: access_token, 
-                user: userData 
-            };
-        } catch (error: any) {
-            console.error('Login failed:', error);
-            return { success: false, error: error.response?.data?.detail || 'Usuário ou senha inválidos.' };
+            const result = await loginAPI(identification, password);
+            return result;
+        } finally {
+            setInternalLoading(false);
         }
     };
 
     const logout = () => {
-        localStorage.removeItem(tokenKey);
-        localStorage.removeItem(userKey);
-        delete authApi.defaults.headers.common['Authorization'];
-        setToken(null);
-        setUser(null);
-        window.location.href = '/login';
+        sarakLogout();
+        // O redirecionamento é controlado pelo ProtectedRoute ou pelo Login,
+        // não forçamos um reload de página aqui para evitar o "flicker"
     };
 
     const value = useMemo(() => ({
         user,
         token,
         loading,
-        register,
+        register: registerAPI,
         login,
         logout
-    }), [user, token, loading]);
+    }), [user, token, loading, registerAPI, loginAPI, sarakLogout]);
 
     return (
         <AuthContext.Provider value={value}>
