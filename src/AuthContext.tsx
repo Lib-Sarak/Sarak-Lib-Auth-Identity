@@ -97,7 +97,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
             // Atualiza o estado e o header global IMEDIATAMENTE
             authApi.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+            setUser(userData);
             setToken(access_token);
+            setLoading(false);
             
             return { 
                 success: true, 
