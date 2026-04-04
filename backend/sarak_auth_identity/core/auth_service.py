@@ -57,16 +57,25 @@ def get_password_hash(password: str) -> str:
 
 # --- JWT Core ---
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def get_secret_key() -> str:
+    """Retorna a chave secreta do ambiente com fallback seguro."""
+    key = os.getenv("JWT_SECRET_KEY", "SarakMatrixSecurityKey2026OperationalKeyV1")
+    return key.strip() # Remove possíveis espaços invisíveis ou quebras de linha
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    
+    current_key = get_secret_key()
+    encoded_jwt = jwt.encode(to_encode, current_key, algorithm=ALGORITHM)
+    return encoded_jwt
 
 def verify_token(token: str) -> Optional[dict]:
-    if not token: return None
     try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        current_key = get_secret_key()
+        payload = jwt.decode(token, current_key, algorithms=[ALGORITHM])
+        return payload
     except JWTError:
         return None
 
@@ -113,20 +122,27 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> User:
-    """Verificação real de identidade com injeção de DB."""
     token = credentials.credentials
     payload = verify_token(token)
+    
     if not payload or not payload.get("sub"):
+        logger.warning(f"[AUTH MODULE] Payload inválido ou ausente no token.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido ou expirado",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    user = get_user_by_id(db, payload["sub"])
+    user_id = payload.get("sub")
+    logger.info(f"[AUTH MODULE] Buscando usuário no banco com ID: {user_id}")
+    
+    user = get_user_by_id(db, user_id)
     if not user:
+        logger.error(f"[AUTH MODULE] Usuário com ID {user_id} NÃO encontrado no banco de dados.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuário não encontrado no sistema",
         )
+    
+    logger.info(f"[AUTH MODULE] Usuário autenticado com sucesso: {user.email}")
     return user

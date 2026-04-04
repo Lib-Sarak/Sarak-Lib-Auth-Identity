@@ -29,27 +29,35 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-    const tokenKey = (window as any).SARAK_AUTH_KEY || 'auth_token';
-    const [user, setUser] = useState<UserProfile | null>(null);
-    const [token, setToken] = useState<string | null>(
-        localStorage.getItem(tokenKey) || 
-        sessionStorage.getItem(tokenKey)
-    );
+    // Chaves padronizadas para o Ecossistema Sarak Matrix
+    const tokenKey = 'sarak_token';
+    const userKey = 'sarak_user';
+
+    const [user, setUser] = useState<UserProfile | null>(() => {
+        const saved = localStorage.getItem(userKey);
+        return saved ? JSON.parse(saved) : null;
+    });
+    
+    const [token, setToken] = useState<string | null>(localStorage.getItem(tokenKey));
     const [loading, setLoading] = useState(true);
 
     // Load user on startup or token change
     useEffect(() => {
         const fetchMe = async () => {
             if (token) {
+                // Atualiza o header do Axios para garantir que a próxima chamada tenha o token
+                authApi.defaults.headers.common['Authorization'] = `Bearer ${token}`;
                 try {
                     const response = await authApi.get('/api/auth/me');
                     setUser(response.data);
+                    localStorage.setItem(userKey, JSON.stringify(response.data));
                 } catch (e) {
                     console.error("Error loading profile:", e);
                     logout();
                 }
             } else {
                 setUser(null);
+                delete authApi.defaults.headers.common['Authorization'];
             }
             setLoading(false);
         };
@@ -58,7 +66,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const register = async (email: string, password: string) => {
         try {
-            // Sarak Standard: Usar email como username no primeiro acesso
             await authApi.post('/api/auth/register', { 
                 username: email, 
                 email: email, 
@@ -67,32 +74,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return { success: true };
         } catch (error: any) {
             console.error('Registration failed:', error);
-            const message = error.response?.data?.detail || 'Erro ao criar conta.';
-            return { success: false, error: message };
+            return { success: false, error: error.response?.data?.detail || 'Erro ao criar conta.' };
         }
     };
 
     const login = async (identification: string, password?: string) => {
         try {
-            // No backend, o contrato Pydantic espera 'username'
             const response = await authApi.post('/api/auth/login', { username: identification, password });
             const { access_token, user: userData } = response.data;
 
-            // Sincronização com a Sarak Matrix v3 (SarakProvider)
-            const isUnified = (window as any).SARAK_UNIFIED_AUTH === true;
-            const systemId = (window as any).SARAK_SYSTEM_ID || 'sarak';
-            
-            const activeTokenKey = isUnified ? 'sarak_token' : `${systemId}_token`;
-            const activeUserKey = isUnified ? 'sarak_user' : `${systemId}_user`;
-
-            localStorage.setItem(activeTokenKey, access_token);
+            // Gravação Simétrica (Mesma chave da leitura)
+            localStorage.setItem(tokenKey, access_token);
             if (userData) {
-                localStorage.setItem(activeUserKey, JSON.stringify(userData));
+                localStorage.setItem(userKey, JSON.stringify(userData));
             }
 
+            // Atualiza o estado e o header global IMEDIATAMENTE
+            authApi.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
             setToken(access_token);
             
-            // Retornamos os dados para que o componente Login possa sincronizar o Sarak OS Core
             return { 
                 success: true, 
                 token: access_token, 
@@ -100,32 +100,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             };
         } catch (error: any) {
             console.error('Login failed:', error);
-            
-            let message = error.response?.data?.detail || 'Usuário ou senha inválidos.';
-            
-            // Se o FastAPI retornar um erro de validação (lista/objeto), converte para string
-            if (typeof message === 'object') {
-                message = 'Erro nos dados de login. Verifique os campos.';
-            }
-            
-            return { success: false, error: message };
+            return { success: false, error: error.response?.data?.detail || 'Usuário ou senha inválidos.' };
         }
     };
 
     const logout = () => {
-        const activeTokenKey = (window as any).SARAK_AUTH_KEY || 'auth_token';
-        const activeUserIdKey = 'user_id';
-        const activeUsernameKey = 'username';
-
-        const keysToRemove = [activeTokenKey, activeUserIdKey, activeUsernameKey];
-        keysToRemove.forEach(k => {
-            localStorage.removeItem(k);
-            sessionStorage.removeItem(k);
-        });
+        localStorage.removeItem(tokenKey);
+        localStorage.removeItem(userKey);
+        delete authApi.defaults.headers.common['Authorization'];
         setToken(null);
         setUser(null);
-        
-        // Reload para limpar o resto da aplicação e widgets externos
         window.location.href = '/login';
     };
 
