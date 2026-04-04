@@ -35,7 +35,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const [user, setUser] = useState<UserProfile | null>(() => {
         const saved = localStorage.getItem(userKey);
-        return saved ? JSON.parse(saved) : null;
+        if (!saved || saved === 'undefined') return null;
+        try {
+            return JSON.parse(saved);
+        } catch (e) {
+            console.error("Failed to parse user from localStorage", e);
+            return null;
+        }
     });
     
     const [token, setToken] = useState<string | null>(localStorage.getItem(tokenKey));
