@@ -1,18 +1,12 @@
 
 *.egg-info/
 __pycache__/
-
 .env
-
 node_modules/
-
 .venv/
-
 *.sqlite
-
 *.log
-
-
 # Gerados no packaging
 build/
-# dist/
+dist/
+.vite/
