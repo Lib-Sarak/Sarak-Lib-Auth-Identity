@@ -3,14 +3,15 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    const { token, loading } = useAuth();
+    const { token, loading, isHydrated } = useAuth();
     const location = useLocation();
 
-    if (loading) {
+    // Enquanto o sistema estiver hidratando (lendo localStorage/validando), mostramos o loader
+    if (!isHydrated || loading) {
         return (
             <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
                 <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-slate-400 font-mono animate-pulse">Verifying authorization...</p>
+                <p className="text-slate-400 font-mono animate-pulse">Sincronizando Sarak Matrix...</p>
             </div>
         );
     }

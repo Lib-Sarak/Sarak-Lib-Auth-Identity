@@ -13,6 +13,7 @@ interface AuthContextType {
     user: UserProfile | null;
     token: string | null;
     loading: boolean;
+    isHydrated: boolean; // Flag de proteção contra flickering
     register: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
     login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; token?: string; user?: any }>;
     logout: () => void;
@@ -34,10 +35,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user, 
         token, 
         loading: sarakLoading, 
-        login: sarakLogin, 
-        logout: sarakLogout,
+        isHydrated,
         loginAPI,
-        registerAPI
+        registerAPI,
+        logout: sarakLogout
     } = useSarak();
 
     const [internalLoading, setInternalLoading] = useState(false);
@@ -57,18 +58,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = () => {
         sarakLogout();
-        // O redirecionamento é controlado pelo ProtectedRoute ou pelo Login,
-        // não forçamos um reload de página aqui para evitar o "flicker"
     };
 
     const value = useMemo(() => ({
         user,
         token,
         loading,
+        isHydrated,
         register: registerAPI,
         login,
         logout
-    }), [user, token, loading, registerAPI, loginAPI, sarakLogout]);
+    }), [user, token, loading, isHydrated, registerAPI, loginAPI, sarakLogout]);
 
     return (
         <AuthContext.Provider value={value}>
