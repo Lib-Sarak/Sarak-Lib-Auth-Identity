@@ -81,24 +81,24 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                 {/* Animated Decorative Background */}
                 <div className="absolute inset-0 opacity-20">
                     <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-theme-primary/20 rounded-full blur-[120px] animate-pulse"></div>
-                    <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-500/10 rounded-full blur-[120px] animate-pulse [animation-delay:2s]"></div>
+                    <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-theme-secondary/10 rounded-full blur-[120px] animate-pulse [animation-delay:2s]"></div>
                 </div>
 
                 {/* Visual Grid */}
                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
-                <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
+                <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, var(--theme-border) 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
 
                 <div className="relative z-10 max-w-xl text-center flex flex-col items-center">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.8, rotate: -10 }}
                         animate={{ opacity: 1, scale: 1, rotate: 0 }}
                         transition={{ duration: 0.8, type: "spring" }}
-                        className="w-24 h-24 bg-gradient-to-tr from-theme-primary to-theme-primary/60 rounded-3xl flex items-center justify-center shadow-2xl shadow-theme-primary/20 mb-8 border border-theme-primary/20"
+                        className="w-24 h-24 bg-gradient-to-tr from-theme-primary to-theme-primary/60 rounded-sarak flex items-center justify-center shadow-2xl shadow-theme-primary/20 mb-8 border border-theme-border"
                     >
                         {branding?.logo ? (
                             <img src={branding.logo} alt="Logo" className="w-12 h-12 object-contain" />
                         ) : (
-                            <Cpu className="w-12 h-12 text-white" />
+                            <Cpu className="w-12 h-12 text-theme-title" />
                         )}
                     </motion.div>
 
@@ -190,7 +190,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                                     required
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    className="block w-full pl-11 pr-4 py-4 sarak-glass bg-theme-card border border-theme-border rounded-2xl focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
+                                    className="block w-full pl-11 pr-4 py-4 sarak-glass bg-theme-card border border-theme-border rounded-sarak focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
                                     placeholder="seu@email.com"
                                     autoComplete="off"
                                 />
@@ -199,11 +199,11 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
 
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between px-1">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Senha</label>
-                                {!isRegistering && <button type="button" className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors">Esqueceu?</button>}
+                                <label className="text-xs font-bold text-theme-muted uppercase tracking-widest">Senha</label>
+                                {!isRegistering && <button type="button" className="text-xs font-bold text-theme-primary hover:opacity-80 transition-colors">Esqueceu?</button>}
                             </div>
                             <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-blue-500 text-slate-500">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-theme-primary text-theme-muted">
                                     <Lock className="h-5 w-5" />
                                 </div>
                                 <input
@@ -211,14 +211,14 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="block w-full pl-11 pr-12 py-4 sarak-glass bg-theme-card border border-theme-border rounded-2xl focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
+                                    className="block w-full pl-11 pr-12 py-4 sarak-glass bg-theme-card border border-theme-border rounded-sarak focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
                                     placeholder="••••••••"
                                     autoComplete="new-password"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-600 hover:text-white transition-colors"
+                                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-theme-muted hover:text-theme-text transition-colors"
                                 >
                                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                 </button>
@@ -228,7 +228,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                         <button
                             type="submit"
                             disabled={isPending}
-                            className="w-full mt-4 flex items-center justify-center gap-2 py-4 bg-theme-primary hover:opacity-90 disabled:bg-theme-card disabled:text-theme-muted text-theme-text rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-theme-primary/10 active:scale-[0.98]"
+                            className="w-full mt-4 flex items-center justify-center gap-2 py-4 bg-theme-primary hover:opacity-90 disabled:bg-theme-card disabled:text-theme-muted text-theme-text rounded-sarak font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-theme-primary/10 active:scale-[0.98]"
                         >
                             {isPending ? (
                                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -246,7 +246,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                                     setUsername('usuario@teste.com');
                                     setPassword('test1234');
                                 }}
-                                className="w-full py-3 bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/50 text-blue-400 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all"
+                                className="w-full py-3 bg-theme-card/50 hover:bg-theme-card border border-theme-border hover:border-theme-primary/50 text-theme-primary rounded-sarak font-bold text-xs uppercase tracking-widest transition-all"
                             >
                                 Entrar como usuário teste
                             </button>
