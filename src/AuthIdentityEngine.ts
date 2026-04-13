@@ -8,21 +8,22 @@ import { ISarakAuthEngine, authApi } from '@sarak/lib-shared';
 export const AuthIdentityEngine: ISarakAuthEngine = {
     login: async (identification: string, password?: string) => {
         try {
-            const response = await (authApi as any).post('/api/auth/login', { 
+            const response = await (authApi as any).post('/auth/login', { 
                 username: identification, 
                 password 
             });
             const { access_token, user: userData } = response.data;
             
-            // O SarakProvider cuidará de salvar no localStorage e configurar o header
             return { 
                 success: true, 
                 token: access_token, 
-                user: userData 
+                user: userData,
+                status: response.status 
             };
         } catch (error: any) {
             return { 
                 success: false, 
+                status: error.response?.status,
                 error: error.response?.data?.detail || 'Usuário ou senha inválidos.' 
             };
         }
@@ -30,7 +31,7 @@ export const AuthIdentityEngine: ISarakAuthEngine = {
 
     register: async (email: string, password: string) => {
         try {
-            await (authApi as any).post('/api/auth/register', { 
+            await (authApi as any).post('/auth/register', { 
                 username: email, 
                 email: email, 
                 password 
@@ -39,14 +40,25 @@ export const AuthIdentityEngine: ISarakAuthEngine = {
         } catch (error: any) {
             return { 
                 success: false, 
+                status: error.response?.status,
                 error: error.response?.data?.detail || 'Erro ao criar conta.' 
             };
         }
     },
 
-    fetchMe: async (token: string) => {
-        (authApi as any).defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const response = await (authApi as any).get('/api/auth/me');
-        return response.data;
+    getMe: async () => {
+        try {
+            const response = await (authApi as any).get('/auth/me');
+            return { 
+                success: true, 
+                user: response.data,
+                status: response.status
+            };
+        } catch (error: any) {
+            return { 
+                success: false,
+                status: error.response?.status
+            };
+        }
     }
 };

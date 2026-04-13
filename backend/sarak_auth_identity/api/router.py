@@ -46,7 +46,7 @@ class UserCreate(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: uuid.UUID
+    user_id: uuid.UUID
     username: str
     email: str
     is_active: bool
@@ -64,12 +64,14 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
             detail="Credenciais inválidas",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = auth_service.create_access_token(data={"sub": str(user.id)})
+    access_token = auth_service.create_access_token(data={"sub": str(user.user_id)})
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user_id": str(user.id),
-        "username": user.username,
+        "user": {
+            "user_id": str(user.user_id),
+            "username": user.username,
+        }
     }
 
 
@@ -88,15 +90,8 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-def get_me(current_user: Optional[User] = Depends(get_current_user)):
+def get_me(current_user: User = Depends(get_current_user)):
     """
-    Retorna o perfil do usuário autenticado.
-    Depende de get_current_user — que deve ser sobrescrito pelo Gateway
-    com a implementação real usando JWT + sessão de DB.
+    Retorna o perfil do usuário autenticado. Exige token válido.
     """
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Não autenticado",
-        )
     return current_user

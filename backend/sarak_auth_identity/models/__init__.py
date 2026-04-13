@@ -1,3 +1,3 @@
-from .database import User, ApiKey
+from .database import User, setup_identity_db
 
-__all__ = ["User", "ApiKey"]
+__all__ = ["User"]
