@@ -95,3 +95,20 @@ def get_me(current_user: User = Depends(get_current_user)):
     Retorna o perfil do usuário autenticado. Exige token válido.
     """
     return current_user
+
+
+@router.get("/users/{user_id}", response_model=UserResponse)
+def get_user_info(user_id: str, db: Session = Depends(get_db)):
+    """
+    Rota M2M (Machine-to-Machine) para consulta de usuários.
+    Sistemas que possuam apenas a string/UUID `user_id` podem consumir essa API REST 
+    para resgatar dados do perfil original cadastrados na Auth-Identity.
+    (Opcionalmente, pode-se exigir uma SystemApiKey no futuro).
+    """
+    user = auth_service.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado"
+        )
+    return user
