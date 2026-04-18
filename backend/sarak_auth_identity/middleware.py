@@ -1,10 +1,8 @@
+import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
-import logging
-
-# We need the shared identity contexts
-from sarak_shared.database import identity_context, tenant_context
-from sarak_auth_identity.core import auth_service
+from .database import identity_context, tenant_context
+from .core import auth_service
 
 logger = logging.getLogger(__name__)
 
@@ -18,18 +16,29 @@ async def identity_middleware(request: Request, call_next):
     tenant_context.set(system_id)
     
     # 2. Caminhos Isentos (Públicos)
-    EXEMPT_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/status", "/docs", "/openapi.json"]
+    EXEMPT_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/status", "/docs", "/openapi.json", "/module/manifest"]
     if any(request.url.path.startswith(path) for path in EXEMPT_PATHS) or request.method == "OPTIONS":
         return await call_next(request)
 
     # LIMPEZA PREVENTIVA: Garante que não haja resíduo de identidade
     identity_context.set(None)
     
+    # [Sarak Matrix V18.5] SUPORTE A SOBERANIA M2M (System Key)
+    import os
+    system_key = request.headers.get("X-System-API-Key")
+    expected_key = os.getenv("SYSTEM_API_KEY", "")
+    
+    if system_key and expected_key and system_key == expected_key:
+        uid = request.headers.get("X-Sarak-User-ID", "system")
+        user_id_context_token = identity_context.set(uid)
+        logger.info(f" [AUTH:SOVEREIGN] Acesso via System Key para UID: {uid}")
+        return await call_next(request)
+
     auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
     user_id_context_token = None
 
     if not auth_header:
-        print(f">>> [Gateway:401] Request em rota protegida SEM token Bearer: {request.url.path}")
+        print(f">>> [Gateway:401] Request em rota protegida SEM token Bearer ou System Key: {request.url.path}")
         return JSONResponse(
             status_code=401,
             content={"detail": "Gateway: Autenticação obrigatória (Header ausente)"}

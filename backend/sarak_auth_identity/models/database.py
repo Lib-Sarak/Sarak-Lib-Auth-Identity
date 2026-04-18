@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
-from sarak_shared import Base, ensure_schema_exists
+from ..database import Base
 
 
 
@@ -26,11 +26,7 @@ class User(Base):
 # Tabela ApiKey removida por redundância (Soberania agora no Orchestrator)
 
 
-def setup_identity_db(engine):
-    """Inicializa o schema e as tabelas deste módulo."""
-    from sarak_shared import Base, ensure_schema_exists
-    ensure_schema_exists(engine, "sarak_auth")
-    Base.metadata.create_all(bind=engine, tables=[User.__table__])
+# setup_identity_db movido para o database.py soberano do módulo.
 
 
 

@@ -5,11 +5,11 @@ logger = logging.getLogger(__name__)
 
 def seed_auth_identity(engine: Engine):
     """Creates the official default test user in the Sarak Ecosystem."""
-    # Local imports to avoid circular dependencies during initialization
-    from sarak_shared.database import get_sarak_session
+    from .database import SessionLocal
+    from .models.database import User
     from sarak_auth_identity.core import auth_service
     
-    db = get_sarak_session(engine)
+    db = SessionLocal()
     try:
         test_user = auth_service.get_user_by_username(db, "usuario@teste.com")
         if not test_user:

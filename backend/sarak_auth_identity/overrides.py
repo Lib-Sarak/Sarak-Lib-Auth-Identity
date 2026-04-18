@@ -3,15 +3,14 @@ from typing import Generator, Optional
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials
 
-from sarak_shared.database import get_sarak_engine, get_sarak_session
-from sarak_auth_identity.core import auth_service
+from .database import SessionLocal
+from .core import auth_service
 
 logger = logging.getLogger(__name__)
 
 def _get_identity_db() -> Generator:
     """Sessão dedicada para autenticação. Schema 'sarak_auth' já é explícito no modelo."""
-    engine = get_sarak_engine()
-    db = get_sarak_session(engine)
+    db = SessionLocal()
     try:
         yield db
     finally:

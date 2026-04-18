@@ -1,0 +1,17 @@
+{
+  "id": "auth-identity",
+  "label": "Identidade e Acesso",
+  "icon": "ShieldCheck",
+  "category": "Sistema",
+  "version": "1.0.0",
+  "priority": 0,
+  "endpoints": {
+    "manifest": "/api/v1/module/manifest",
+    "verify": "/api/v1/verify",
+    "login": "/api/v1/login",
+    "logout": "/api/v1/logout"
+  },
+  "visualContracts": {
+    "profile": "SarakForm"
+  }
+}

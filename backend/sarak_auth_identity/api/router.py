@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+import json
+import os
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel, EmailStr
@@ -7,11 +9,7 @@ import uuid
 from ..core import auth_service
 from ..models.database import User
 
-from sarak_shared.database import get_sarak_db
-
-def get_db():
-    """Busca a sessão de banco de dados diretamente do Sarak OS Core."""
-    yield from get_sarak_db()
+from ..database import get_db
 
 
 async def get_current_user(
@@ -25,6 +23,16 @@ async def get_current_user(
 # ── Router ────────────────────────────────────────────────────────────────────
 
 router = APIRouter(tags=["Identity"])
+
+@router.get("/module/manifest")
+def get_module_manifest():
+    """Expondo o manifesto para o motor de descoberta do UI-Core (v5.5)."""
+    manifest_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../manifest.json"))
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Manifesto não encontrado na raiz do módulo")
 
 
 class LoginRequest(BaseModel):
