@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 import json
 import os
 from sqlalchemy.orm import Session
@@ -30,7 +31,8 @@ def get_module_manifest():
     manifest_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../manifest.json"))
     try:
         with open(manifest_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            manifest = json.load(f)
+            return JSONResponse(content=manifest, headers={"Content-Type": "application/json; charset=utf-8"})
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Manifesto não encontrado na raiz do módulo")
 

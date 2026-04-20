@@ -15,9 +15,23 @@ async def identity_middleware(request: Request, call_next):
     system_id = request.headers.get("X-System-ID") or request.headers.get("X-Tenant-ID") or request.query_params.get("system_id") or "public"
     tenant_context.set(system_id)
     
-    # 2. Caminhos Isentos (Públicos)
-    EXEMPT_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/status", "/docs", "/openapi.json", "/module/manifest"]
-    if any(request.url.path.startswith(path) for path in EXEMPT_PATHS) or request.method == "OPTIONS":
+    # 2. Caminhos Isentos (Públicos) - Sarak Matrix v5.5 (Discovery Friendly)
+    EXEMPT_PATHS = [
+        "/api/auth/login", 
+        "/api/auth/register", 
+        "/api/auth/status", 
+        "/api/catalog/models", 
+        "/api/catalog/status",
+        "/api/discovery",
+        "/docs", 
+        "/openapi.json"
+    ]
+    
+    is_exempt = any(request.url.path.startswith(path) for path in EXEMPT_PATHS) or \
+                request.url.path.endswith("/module/manifest") or \
+                request.method == "OPTIONS"
+
+    if is_exempt:
         return await call_next(request)
 
     # LIMPEZA PREVENTIVA: Garante que não haja resíduo de identidade
