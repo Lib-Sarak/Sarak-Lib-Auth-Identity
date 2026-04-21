@@ -3,13 +3,16 @@ from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
+from sqlalchemy.orm import sessionmaker
+
 def seed_auth_identity(engine: Engine):
     """Creates the official default test user in the Sarak Ecosystem."""
-    from .database import SessionLocal
     from .models.database import User
     from sarak_auth_identity.core import auth_service
     
-    db = SessionLocal()
+    # Cria uma sessão vinculada diretamente ao motor injetado pelo sistema (v5.5)
+    Session = sessionmaker(bind=engine)
+    db = Session()
     try:
         test_user = auth_service.get_user_by_username(db, "usuario@teste.com")
         if not test_user:

@@ -1,14 +1,14 @@
-import { registerSarakModule } from "@sarak/lib-shared";
 import { User } from "lucide-react";
 
-// Auto-Initialization (P&P Sovereign)
-registerSarakModule({
+// Manifesto de Identidade (Agnóstico - v5.6)
+export const AuthModuleManifest = {
     id: "auth-profile",
     label: "Meu Perfil",
     icon: "User",
     category: "Sistema",
-    component: null // Componente será carregado dinamicamente pelo Framework
-});
+    priority: 100
+};
+
 
 export * from "./Login"; 
 export * from "./ProtectedRoute";

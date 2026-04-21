@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import { api, authApi, useSarak } from '@sarak/lib-shared';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
+// Sarak Matrix v5.5: authApi e api agora são providos via props ou importados de serviço local
+// Sarak Matrix v5.5: authApi e api agora são importados do serviço local do módulo
+import { api, authApi } from './api';
 
 export interface UserProfile {
     id: string | number;
@@ -17,6 +19,7 @@ interface AuthContextType {
     register: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
     login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; token?: string; user?: any }>;
     logout: () => void;
+    authApi: any; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,35 +33,63 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-    // Consumir o estado central do SarakProvider para evitar redundância e loops
-    const { 
-        user, 
-        token, 
-        loading: sarakLoading, 
-        isHydrated,
-        loginAPI,
-        registerAPI,
-        logout: sarakLogout
-    } = useSarak();
+    const [user, setUser] = useState<UserProfile | null>(null);
+    const [token, setToken] = useState<string | null>(localStorage.getItem('sarak_token'));
+    const [loading, setLoading] = useState(true);
+    const [isHydrated, setIsHydrated] = useState(false);
 
-    const [internalLoading, setInternalLoading] = useState(false);
-
-    // O loading final é a combinação do motor central e inicialização local se houver
-    const loading = sarakLoading || internalLoading;
+    const logout = useCallback(() => {
+        setToken(null);
+        setUser(null);
+        localStorage.removeItem('sarak_token');
+        localStorage.removeItem('sarak_user');
+        window.location.href = '/login';
+    }, []);
 
     const login = async (identification: string, password?: string) => {
-        setInternalLoading(true);
+        setLoading(true);
         try {
-            const result = await loginAPI(identification, password);
-            return result;
+            const response = await authApi.post('/auth/login', { email: identification, password });
+            if (response.data && response.data.access_token) {
+                const newToken = response.data.access_token;
+                const newUser = response.data.user;
+                setToken(newToken);
+                setUser(newUser);
+                localStorage.setItem('sarak_token', newToken);
+                localStorage.setItem('sarak_user', JSON.stringify(newUser));
+                return { success: true, token: newToken, user: newUser };
+            }
+            return { success: false, error: 'Falha no login' };
+        } catch (err: any) {
+            let errorMessage = err.message;
+            if (err.response?.data?.detail) {
+                const detail = err.response.data.detail;
+                errorMessage = typeof detail === 'string' ? detail : JSON.stringify(detail);
+            }
+            return { success: false, error: errorMessage };
         } finally {
-            setInternalLoading(false);
+            setLoading(false);
         }
     };
 
-    const logout = () => {
-        sarakLogout();
+    const registerAPI = async (email: string, password: string) => {
+        try {
+            await authApi.post('/auth/register', { email, password });
+            return { success: true };
+        } catch (err: any) {
+            return { success: false, error: err.response?.data?.detail || err.message };
+        }
     };
+
+    // Hydration
+    useEffect(() => {
+        const storedUser = localStorage.getItem('sarak_user');
+        if (storedUser && storedUser !== 'undefined') {
+            setUser(JSON.parse(storedUser));
+        }
+        setIsHydrated(true);
+        setLoading(false);
+    }, []);
 
     const value = useMemo(() => ({
         user,
@@ -67,8 +98,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isHydrated,
         register: registerAPI,
         login,
-        logout
-    }), [user, token, loading, isHydrated, registerAPI, loginAPI, sarakLogout]);
+        logout,
+        authApi
+    }), [user, token, loading, isHydrated]);
 
     return (
         <AuthContext.Provider value={value}>

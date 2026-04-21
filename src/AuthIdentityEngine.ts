@@ -1,4 +1,10 @@
-import { ISarakAuthEngine, authApi } from '@sarak/lib-shared';
+import { authApi } from './api';
+
+export interface ISarakAuthEngine {
+    login: (identification: string, password?: string) => Promise<any>;
+    register: (email: string, password: string) => Promise<any>;
+    getMe: () => Promise<any>;
+}
 
 /**
  * Auth & Identity Engine (Sarak Matrix v5.0)

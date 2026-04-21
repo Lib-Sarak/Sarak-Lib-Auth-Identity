@@ -38,7 +38,7 @@ def get_module_manifest():
 
 
 class LoginRequest(BaseModel):
-    username: str
+    email: str
     password: str
 
 
@@ -67,7 +67,7 @@ class UserResponse(BaseModel):
 
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, db: Session = Depends(get_db)):
-    user = auth_service.authenticate_user(db, data.username, data.password)
+    user = auth_service.authenticate_user(db, data.email, data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

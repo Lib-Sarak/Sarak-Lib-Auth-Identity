@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KeyRound, X, Loader2, Save } from 'lucide-react';
-import { authApi } from '@sarak/lib-shared';
+import { authApi } from './api';
 
 interface ChangePasswordModalProps {
     isOpen: boolean;

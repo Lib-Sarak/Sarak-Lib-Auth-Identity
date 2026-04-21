@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useSarak } from '@sarak/lib-shared';
+import { useAuth } from './AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Cpu,
@@ -33,7 +33,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
     const [error, setError] = useState<string>('');
     const [isPending, setIsPending] = useState(false);
 
-    const { loginAPI, registerAPI, login: syncSarak } = useSarak();
+    const { login: loginAPI, register: registerAPI } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
