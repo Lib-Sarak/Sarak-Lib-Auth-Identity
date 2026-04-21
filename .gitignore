@@ -1,12 +1,51 @@
+# SARAK MODULAR - Hybrid Protection (Node + Python)
+# Governança de Soberania v6.7
 
-*.egg-info/
-__pycache__/
-.env
+# Node.js
 node_modules/
-.venv/
-*.sqlite
-*.log
-# Gerados no packaging
-build/
 dist/
+build/
+.next/
+out/
 .vite/
+.turbo/
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs e DBs
+*.log
+*.sqlite
+*.sqlite3
+*.db
+!orchestrator.db
+
+# Sarak Matrix / Configs
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+scratch/
+_scratch/
+debug_*.py
+test_api.py
+_deep_seeder_check.py
+
+# IDEs / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
