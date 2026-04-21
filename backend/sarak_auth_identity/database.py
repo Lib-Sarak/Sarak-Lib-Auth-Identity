@@ -1,10 +1,14 @@
 import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import contextvars
 
 # --- CONFIGURAÇÃO DE BANCO SOBERANA (v5.5) ---
+from dotenv import load_dotenv
+load_dotenv()
+
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/sarak_db")
 SCHEMA_NAME = "sarak_auth"
 

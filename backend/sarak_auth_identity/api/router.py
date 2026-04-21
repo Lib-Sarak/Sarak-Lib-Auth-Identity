@@ -9,8 +9,8 @@ import uuid
 
 from ..core import auth_service
 from ..models.database import User
-
-from ..database import get_db
+from ..database import get_db, engine, setup_identity_db
+from ..seed import seed_auth_identity
 
 
 async def get_current_user(
@@ -24,6 +24,21 @@ async def get_current_user(
 # ── Router ────────────────────────────────────────────────────────────────────
 
 router = APIRouter(tags=["Identity"])
+
+@router.on_event("startup")
+def sovereign_boot():
+    """Inicialização soberana do módulo Auth-Identity (v5.5)"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(" [Sarak OS] Inicializando módulo: Auth-Identity (Soberano)")
+    
+    # 1. Setup DB (Schema + Tables)
+    setup_identity_db(engine)
+    
+    # 2. Seed
+    seed_auth_identity(engine)
+    
+    logger.info(" [Sarak OS] Módulo Auth-Identity pronto.")
 
 @router.get("/module/manifest")
 def get_module_manifest():
