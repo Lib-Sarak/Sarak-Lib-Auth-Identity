@@ -14,7 +14,9 @@ def seed_auth_identity(engine: Engine):
     Session = sessionmaker(bind=engine)
     db = Session()
     try:
-        test_user = auth_service.get_user_by_username(db, "usuario@teste.com")
+        # Busca o usuário pelo e-mail oficial de teste (v6.8 Idempotency)
+        test_user = auth_service.get_user_by_email(db, "usuario@teste.com")
+        
         if not test_user:
             test_user = auth_service.create_user(
                 db=db,
@@ -24,6 +26,8 @@ def seed_auth_identity(engine: Engine):
             )
             db.commit()
             logger.info(f" [+] Auth-Identity (Seed): Usuário oficial de teste criado ({test_user.user_id})")
+        else:
+            logger.info(f" [-] Auth-Identity (Seed): Usuário oficial de teste já existe.")
     except Exception as e:
         db.rollback()
         logger.error(f" [!] Auth-Identity (Seed): Erro crítico ao criar usuário padrão: {e}")

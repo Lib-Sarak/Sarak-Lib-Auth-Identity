@@ -8,9 +8,9 @@ from pydantic import BaseModel, EmailStr
 import uuid
 
 from ..core import auth_service
-from ..models.database import User
-from ..database import get_db, engine, setup_identity_db
-from ..seed import seed_auth_identity
+from ..core.models.database import User
+from ..core.database import get_db, engine, setup_identity_db
+from ..core.seed import seed_auth_identity
 
 
 async def get_current_user(

@@ -1,4 +1,4 @@
-import { authApi } from './api';
+import { authApi } from '../api/auth-api';
 
 export interface ISarakAuthEngine {
     login: (identification: string, password?: string) => Promise<any>;

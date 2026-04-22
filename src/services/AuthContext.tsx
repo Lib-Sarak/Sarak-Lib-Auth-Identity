@@ -1,26 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
-// Sarak Matrix v5.5: authApi e api agora são providos via props ou importados de serviço local
-// Sarak Matrix v5.5: authApi e api agora são importados do serviço local do módulo
-import { api, authApi } from './api';
-
-export interface UserProfile {
-    id: string | number;
-    username: string;
-    email?: string;
-    full_name?: string;
-    [key: string]: any;
-}
-
-interface AuthContextType {
-    user: UserProfile | null;
-    token: string | null;
-    loading: boolean;
-    isHydrated: boolean; // Flag de proteção contra flickering
-    register: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-    login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; token?: string; user?: any }>;
-    logout: () => void;
-    authApi: any; 
-}
+import { api, authApi } from '../api/auth-api';
+import { UserProfile, AuthContextType } from '../types/auth';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 

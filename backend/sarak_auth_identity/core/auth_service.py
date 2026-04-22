@@ -6,7 +6,7 @@ from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from ..models.database import User
+from .models.database import User
 from sarak_auth_identity.config import settings
 import logging
 import hashlib

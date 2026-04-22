@@ -43,6 +43,6 @@ def setup_identity_db(ext_engine=None):
         conn.commit()
     
     # Importação local para evitar referências circulares
-    from sarak_auth_identity.models.database import User
+    from sarak_auth_identity.core.models.database import User
     Base.metadata.create_all(bind=target_engine)
     print(f">>> [Auth DB] Soberania: Schema {SCHEMA_NAME} verificado com sucesso.")

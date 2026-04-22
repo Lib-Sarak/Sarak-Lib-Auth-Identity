@@ -2,7 +2,7 @@ import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from .database import identity_context, tenant_context
-from .core import auth_service
+from . import auth_service
 
 logger = logging.getLogger(__name__)
 

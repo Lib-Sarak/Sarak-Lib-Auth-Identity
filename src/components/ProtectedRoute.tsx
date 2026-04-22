@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from './AuthContext';
+import { useAuth } from '../services/AuthContext';
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const { token, loading, isHydrated } = useAuth();

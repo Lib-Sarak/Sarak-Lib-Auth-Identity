@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from './AuthContext';
+import { useAuth } from '../services/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Cpu,

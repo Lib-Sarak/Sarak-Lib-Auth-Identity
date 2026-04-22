@@ -4,7 +4,7 @@ from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials
 
 from .database import SessionLocal
-from .core import auth_service
+from . import auth_service
 
 logger = logging.getLogger(__name__)
 
