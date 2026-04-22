@@ -1,7 +1,7 @@
 import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from .database import identity_context, tenant_context
+from ..database import identity_context, tenant_context
 from . import auth_service
 
 logger = logging.getLogger(__name__)
@@ -52,10 +52,10 @@ async def identity_middleware(request: Request, call_next):
     user_id_context_token = None
 
     if not auth_header:
-        print(f">>> [Gateway:401] Request em rota protegida SEM token Bearer ou System Key: {request.url.path}")
+        logger.warning(f" [Identity-Gateway] Missing Bearer token or System Key for protected route: {request.url.path}")
         return JSONResponse(
             status_code=401,
-            content={"detail": "Gateway: Autenticação obrigatória (Header ausente)"}
+            content={"detail": "Gateway: Authentication required (Header missing)"}
         )
 
     if auth_header.startswith("Bearer "):
@@ -66,24 +66,24 @@ async def identity_middleware(request: Request, call_next):
             if payload and payload.get("sub"):
                 uid = payload.get("sub")
                 user_id_context_token = identity_context.set(uid)
-                print(f">>> [Gateway:Success] Token Validado para UUID: {uid}")
+                logger.info(f" [Identity-Gateway] Token validated for UUID: {uid}")
             else:
-                print(f">>> [Gateway:401] Token Decodificado mas sem 'sub' (User ID)")
+                logger.warning(" [Identity-Gateway] Token decoded but missing 'sub' (User ID)")
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": "Gateway: Token sem identificador de usuário"}
+                    content={"detail": "Gateway: Token missing user identifier"}
                 )
         except Exception as e:
-            print(f">>> [Gateway:401] Erro na Validação JWT: {str(e)}")
+            logger.error(f" [Identity-Gateway] JWT Validation Error: {e}")
             return JSONResponse(
                 status_code=401,
-                content={"detail": f"Gateway: Falha na Identidade: {str(e)}"}
+                content={"detail": f"Gateway: Identity failure: {str(e)}"}
             )
     else:
-        print(f">>> [Gateway:401] Request em rota protegida SEM token Bearer: {request.url.path}")
+        logger.warning(f" [Identity-Gateway] Invalid auth scheme for protected route: {request.url.path}")
         return JSONResponse(
             status_code=401,
-            content={"detail": "Gateway: Autenticação obrigatória"}
+            content={"detail": "Gateway: Authentication required"}
         )
 
     try:

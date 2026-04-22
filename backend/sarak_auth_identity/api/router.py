@@ -8,8 +8,8 @@ from pydantic import BaseModel, EmailStr
 import uuid
 
 from ..core import auth_service
-from ..core.models.database import User
-from ..core.database import get_db, engine, setup_identity_db
+from ..core.models import User
+from ..database import get_db, engine, setup_identity_db
 from ..core.seed import seed_auth_identity
 
 
@@ -17,7 +17,7 @@ async def get_current_user(
     credentials = Depends(auth_service.security),
     db: Session = Depends(get_db)
 ):
-    """Implementação real de busca de usuário no schema ativo."""
+    """Actual implementation of user lookup in the active schema."""
     return await auth_service.get_current_user(credentials=credentials, db=db)
 
 
@@ -27,10 +27,10 @@ router = APIRouter(tags=["Identity"])
 
 @router.on_event("startup")
 def sovereign_boot():
-    """Inicialização soberana do módulo Auth-Identity (v5.5)"""
+    """Sovereign initialization of the Auth-Identity module (v5.5)"""
     import logging
     logger = logging.getLogger(__name__)
-    logger.info(" [Sarak OS] Inicializando módulo: Auth-Identity (Soberano)")
+    logger.info(" [Sarak OS] Initializing module: Auth-Identity (Sovereign)")
     
     # 1. Setup DB (Schema + Tables)
     setup_identity_db(engine)
@@ -38,18 +38,18 @@ def sovereign_boot():
     # 2. Seed
     seed_auth_identity(engine)
     
-    logger.info(" [Sarak OS] Módulo Auth-Identity pronto.")
+    logger.info(" [Sarak OS] Auth-Identity module ready.")
 
 @router.get("/module/manifest")
 def get_module_manifest():
-    """Expondo o manifesto para o motor de descoberta do UI-Core (v5.5)."""
+    """Exposing the manifest to the UI-Core discovery engine (v5.5)."""
     manifest_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../manifest.json"))
     try:
         with open(manifest_path, "r", encoding="utf-8") as f:
             manifest = json.load(f)
             return JSONResponse(content=manifest, headers={"Content-Type": "application/json; charset=utf-8"})
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Manifesto não encontrado na raiz do módulo")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manifest not found in module root")
 
 
 class LoginRequest(BaseModel):
@@ -86,7 +86,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciais inválidas",
+            detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = auth_service.create_access_token(data={"sub": str(user.user_id)})
@@ -117,7 +117,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     """
-    Retorna o perfil do usuário autenticado. Exige token válido.
+    Returns the authenticated user's profile. Requires a valid token.
     """
     return current_user
 
@@ -125,15 +125,15 @@ def get_me(current_user: User = Depends(get_current_user)):
 @router.get("/users/{user_id}", response_model=UserResponse)
 def get_user_info(user_id: str, db: Session = Depends(get_db)):
     """
-    Rota M2M (Machine-to-Machine) para consulta de usuários.
-    Sistemas que possuam apenas a string/UUID `user_id` podem consumir essa API REST 
-    para resgatar dados do perfil original cadastrados na Auth-Identity.
-    (Opcionalmente, pode-se exigir uma SystemApiKey no futuro).
+    M2M (Machine-to-Machine) route for user lookup.
+    Systems that only have the string/UUID `user_id` can consume this REST API 
+    to retrieve original profile data registered in Auth-Identity.
+    (Optionally, a SystemApiKey can be required in the future).
     """
     user = auth_service.get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário não encontrado"
+            detail="User not found"
         )
     return user

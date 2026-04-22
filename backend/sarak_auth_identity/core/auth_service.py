@@ -1,12 +1,12 @@
 """
-Serviço de autenticação com JWT e hash de senha (Sarak Matrix v5.1)
+Authentication service with JWT and password hashing (v5.1)
 """
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from .models.database import User
+from .models import User
 from sarak_auth_identity.config import settings
 import logging
 import hashlib
@@ -18,27 +18,27 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Configuração de hash de senha
+# Password hashing configuration
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Configuração JWT Identidade (Sarak Matrix v5.1)
-# Prioridade: ENV > Settings > Fallback Seguro
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "SarakMatrixSecurityKey2026OperationalKeyV1")
+# Identity JWT configuration (v5.1)
+# Priority: ENV > Settings > Secure Fallback
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "SarakSecurityKey2026OperationalKeyV1")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 if not os.getenv("JWT_SECRET_KEY"):
-    logger.warning(" [AUTH] JWT_SECRET_KEY não encontrada no ENV. Usando Fallback Operacional.")
-    SECRET_KEY = "SarakMatrixSecurityKey2026OperationalKeyV1"
+    logger.warning(" [AUTH] JWT_SECRET_KEY not found in ENV. Using Operational Fallback.")
+    SECRET_KEY = "SarakSecurityKey2026OperationalKeyV1"
 else:
-    logger.info(f"[Sarak Auth] JWT_SECRET_KEY carregada com sucesso (Início: {SECRET_KEY[:5]}...)")
+    logger.info(f"[Sarak Auth] JWT_SECRET_KEY loaded successfully (Start: {SECRET_KEY[:5]}...)")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 dias
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-# --- Utilitários de Senha ---
+# --- Password Utilities ---
 
 def _pre_hash_password(password: str) -> str:
-    """Evita limite de 72 bytes do bcrypt."""
+    """Avoids bcrypt 72-byte limit."""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -58,8 +58,8 @@ def get_password_hash(password: str) -> str:
 # --- JWT Core ---
 
 def get_secret_key() -> str:
-    """Retorna a chave secreta do ambiente com fallback unificado para Sarak Matrix."""
-    key = os.getenv("JWT_SECRET_KEY", "SarakMatrixSecurityKey2026OperationalKeyV1")
+    """Returns the secret key from environment with unified fallback."""
+    key = os.getenv("JWT_SECRET_KEY", "SarakSecurityKey2026OperationalKeyV1")
     return key.strip()
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -95,7 +95,7 @@ def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
         return None
 
 def create_user(db: Session, email: str, username: str, password: str = None) -> User:
-    if get_user_by_email(db, email): raise ValueError("Email em uso")
+    if get_user_by_email(db, email): raise ValueError("Email already in use")
     user = User(email=email, username=username, password=get_password_hash(password) if password else None)
     db.add(user)
     db.commit()
@@ -110,10 +110,10 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
         return None
     return user
 
-# --- Infraestrutura FastAPI (Injectable) ---
+# --- FastAPI Infrastructure (Injectable) ---
 
 def get_db():
-    """Stub para o Gateway"""
+    """Stub for Gateway"""
     return None
 
 security = HTTPBearer()
@@ -126,28 +126,28 @@ async def get_current_user(
     payload = verify_token(token)
     
     if not payload or not payload.get("sub"):
-        print(f">>> [LibAuth:401] Token Inválido ou Payload corrompido.")
+        logger.warning(" [Auth-Audit] Invalid Token or corrupted Payload.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="LibAuth: Token inválido ou expirado",
+            detail="LibAuth: Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
     user_id = payload.get("sub")
-    print(f">>> [LibAuth:Audit] Buscando usuário no DB para UUID: {user_id}")
+    logger.info(f" [Auth-Audit] Verifying identity for UUID: {user_id}")
     
     try:
         user = get_user_by_id(db, user_id)
         if not user:
-            print(f">>> [LibAuth:401] UUID {user_id} não encontrado no banco ativo.")
+            logger.warning(f" [Auth-Audit] UUID {user_id} not found in database.")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="LibAuth: Identidade não encontrada no banco",
+                detail="LibAuth: Identity not found in database",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        print(f">>> [LibAuth:Success] Usuário Identificado: {user.email}")
+        logger.info(f" [Auth-Audit] Identity Verified: {user.email}")
         return user
     except Exception as e:
-        print(f">>> [LibAuth:Error] Erro crítico na busca: {str(e)}")
-        raise HTTPException(status_code=401, detail=f"LibAuth: Erro interno: {str(e)}")
+        logger.error(f" [Auth-Audit] Critical error during user lookup: {e}")
+        raise HTTPException(status_code=401, detail=f"LibAuth: Internal error: {str(e)}")

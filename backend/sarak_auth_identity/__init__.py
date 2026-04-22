@@ -1,8 +1,8 @@
 """
 Sarak-Lib-Auth-Identity — Autenticação JWT e gerenciamento de identidade.
 """
-from .core.models.database import User
-from .core.database import setup_identity_db
+from .core.models import User
+from .database import setup_identity_db
 from .api.router import router, get_db, get_current_user
 from .core.seed import seed_auth_identity
 from .core.middleware import identity_middleware, tenant_middleware

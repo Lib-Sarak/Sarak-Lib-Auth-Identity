@@ -4,11 +4,12 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
+
+# Standard import from module root
 from ..database import Base
 
-
-
 class User(Base):
+    """Sarak Sovereign User Model (Identity & Access)"""
     __tablename__ = "users"
     __table_args__ = {'schema': 'sarak_auth'}
     
@@ -21,12 +22,4 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relações reversas definidas nos outros modelos (api_keys, token_usage, etc)
-
-# Tabela ApiKey removida por redundância (Soberania agora no Orchestrator)
-
-
-# setup_identity_db movido para o database.py soberano do módulo.
-
-
-
+    # Reverse relationships are defined in other modules if necessary (v6.8 decoupling)
