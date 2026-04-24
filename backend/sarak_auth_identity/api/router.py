@@ -49,7 +49,10 @@ def sovereign_boot():
     Session = sessionmaker(bind=engine)
     db = Session()
     try:
-        test_user = db.query(User).filter((User.email == "master@seed.com") | (User.username == "Master")).first()
+        test_user = db.query(User).filter(
+            ((User.email == "master@seed.com") | (User.username == "Master")),
+            User.system == "global"
+        ).first()
         if test_user:
             test_user.is_superuser = True
             db.commit()
@@ -76,12 +79,13 @@ def get_module_manifest():
 class LoginRequest(BaseModel):
     email: str
     password: str
+    system: str
 
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    user: dict
+    user: dict  # Will be masked by masking utility
 
 class RefreshRequest(BaseModel):
     refresh_token: str
@@ -90,6 +94,7 @@ class UserCreate(BaseModel):
     username: str
     email: EmailStr
     password: str
+    system: str
 
 class PermissionResponse(BaseModel):
     name: str
@@ -108,17 +113,19 @@ class UserResponse(BaseModel):
     user_id: uuid.UUID
     username: str
     email: str
+    system: str
     is_active: bool
     roles: List[RoleResponse] = []
     role_names: Optional[str] = None
     permissions: List[str] = []
-    active_sessions: int = 0  # Governança: Sessões ativas no Matrix
+    active_sessions: int = 0
 
     class Config:
         from_attributes = True
 
 class InteractionLog(BaseModel):
     module_id: str
+    system: str
     action: str
     payload: Optional[dict] = None
 
@@ -152,7 +159,7 @@ def update_role_permissions(
 
 @router.post("/login", response_model=TokenResponse)
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
-    user = auth_service.authenticate_user(db, data.email, data.password)
+    user = auth_service.authenticate_user(db, data.email, data.password, data.system)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -161,30 +168,36 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
         )
     
     user_id_str = str(user.user_id)
-    access_token = auth_service.create_access_token(data={"sub": user_id_str})
-    refresh_token = auth_service.create_refresh_token(data={"sub": user_id_str})
+    # Include system in JWT
+    access_token = auth_service.create_access_token(data={"sub": user_id_str, "system": data.system})
+    refresh_token = auth_service.create_refresh_token(data={"sub": user_id_str, "system": data.system})
     
     # Register session
     auth_service.create_session(
         db, 
         user_id=user_id_str, 
+        system=data.system,
         refresh_token=refresh_token,
         user_agent=request.headers.get("user-agent"),
         ip=request.client.host
     )
     
     # Log interaction
-    InteractionService.log_interaction(db, "auth", "login", {"email": user.email})
+    InteractionService.log_interaction(db, data.system, "auth", "login", {"email": user.email})
+    
+    # Mask user data for TokenResponse
+    masked_user = {
+        "user_id": user_id_str,
+        "username": user.username,
+        "email": user.email,
+        "system": user.system
+    }
     
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer",
-        "user": {
-            "user_id": user_id_str,
-            "username": user.username,
-            "is_superuser": user.is_superuser
-        }
+        "user": masked_user
     }
 
 @router.post("/refresh")
@@ -205,7 +218,10 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=401, detail="Session revoked or not found")
     
-    new_access_token = auth_service.create_access_token(data={"sub": user_id})
+    new_access_token = auth_service.create_access_token(data={
+        "sub": user_id, 
+        "system": session.system
+    })
     return {"access_token": new_access_token, "token_type": "bearer"}
 
 @router.post("/logout")
@@ -220,6 +236,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
             db,
             email=user_in.email,
             username=user_in.username,
+            system=user_in.system,
             password=user_in.password,
         )
         return user
@@ -306,7 +323,7 @@ def get_interactions(
     results = db.query(
         func.date_trunc('hour', UserInteraction.created_at).label('hour'),
         func.count(UserInteraction.interaction_id).label('count')
-    ).group_by('hour').order_by('hour').limit(24).all()
+    ).filter(UserInteraction.system == current_user.system).group_by('hour').order_by('hour').limit(24).all()
     
     return [{"timestamp": r.hour.isoformat(), "count": r.count} for r in results]
 
@@ -320,7 +337,7 @@ def list_roles(db: Session = Depends(get_db), current_user: User = Depends(get_c
     is_test_user = current_user.username.lower() == "master" or current_user.email.lower() == "master@seed.com"
     
     if current_user.is_superuser or is_test_user:
-        return db.query(Role).options(joinedload(Role.permissions)).all()
+        return db.query(Role).filter(Role.system == current_user.system).options(joinedload(Role.permissions)).all()
         
     logger.warning(f" [RBAC-Audit] Access Denied for {current_user.username} ({current_user.email}) on /roles")
     raise HTTPException(status_code=403, detail="Acesso negado: Requer privilégios de Superuser")
@@ -330,7 +347,7 @@ def create_role(name: str, permissions: List[str], db: Session = Depends(get_db)
     """Cria ou atualiza um papel e suas permissões."""
     is_test_user = current_user.username.lower() == "teste" or current_user.email.lower() == "teste@sarak.com"
     if current_user.is_superuser or is_test_user:
-        return auth_service.update_or_create_role(db, name, permissions)
+        return auth_service.update_or_create_role(db, name, current_user.system, permissions)
     raise HTTPException(status_code=403, detail="Acesso negado")
 
 @router.put("/users/{user_id}/roles")
@@ -341,9 +358,9 @@ def assign_role(user_id: uuid.UUID, role_names: List[str], db: Session = Depends
     return auth_service.assign_roles_to_user(db, user_id, role_names)
 
 @router.get("/permissions")
-def list_permissions(db: Session = Depends(get_db)):
-    """Lista todas as permissões técnicas cadastradas."""
-    return db.query(Permission).all()
+def list_permissions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Lista todas as permissões técnicas cadastradas para o sistema ativo."""
+    return db.query(Permission).filter(Permission.system == current_user.system).all()
 
 @router.post("/interactions")
 def log_user_interaction(
@@ -353,6 +370,7 @@ def log_user_interaction(
 ):
     InteractionService.log_interaction(
         db, 
+        system=data.system,
         module_id=data.module_id, 
         action=data.action, 
         payload=data.payload

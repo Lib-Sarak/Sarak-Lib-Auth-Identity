@@ -90,13 +90,14 @@ def verify_token(token: str) -> Optional[dict]:
 
 # --- Session & Revocation ---
 
-def create_session(db: Session, user_id: str, refresh_token: str, user_agent: str = None, ip: str = None):
+def create_session(db: Session, user_id: str, system: str, refresh_token: str, user_agent: str = None, ip: str = None):
     from .models import UserSession
     from uuid import UUID
     
     expire = datetime.utcnow() + timedelta(days=30)
     session = UserSession(
         user_id=UUID(user_id),
+        system=system,
         refresh_token=refresh_token,
         user_agent=user_agent,
         ip_address=ip,
@@ -115,13 +116,14 @@ def invalidate_session(db: Session, refresh_token: str):
         return True
     return False
 
-def is_session_valid(db: Session, user_id: str) -> bool:
+def is_session_valid(db: Session, user_id: str, system: str) -> bool:
     """Check if the user has at least one active session (Basic Invalidation Check)"""
     from .models import UserSession
     from uuid import UUID
     
     session = db.query(UserSession).filter(
         UserSession.user_id == UUID(user_id),
+        UserSession.system == system,
         UserSession.is_revoked == False,
         UserSession.expires_at > datetime.utcnow()
     ).first()
@@ -153,11 +155,17 @@ def permission_required(permission_name: str):
 
 # --- Consultas de Banco ---
 
-def get_user_by_email(db: Session, email: str) -> Optional[User]:
-    return db.query(User).filter(func.lower(User.email) == func.lower(email)).first()
+def get_user_by_email(db: Session, email: str, system: str) -> Optional[User]:
+    return db.query(User).filter(
+        func.lower(User.email) == func.lower(email),
+        User.system == system
+    ).first()
 
-def get_user_by_username(db: Session, username: str) -> Optional[User]:
-    return db.query(User).filter(func.lower(User.username) == func.lower(username)).first()
+def get_user_by_username(db: Session, username: str, system: str) -> Optional[User]:
+    return db.query(User).filter(
+        func.lower(User.username) == func.lower(username),
+        User.system == system
+    ).first()
 
 def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
     from uuid import UUID
@@ -166,11 +174,12 @@ def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
     except (ValueError, TypeError):
         return None
 
-def create_user(db: Session, email: str, username: str, password: str = None, is_superuser: bool = False) -> User:
-    if get_user_by_email(db, email): raise ValueError("Email already in use")
+def create_user(db: Session, email: str, username: str, system: str, password: str = None, is_superuser: bool = False) -> User:
+    if get_user_by_email(db, email, system): raise ValueError("Email already in use in this system")
     user = User(
         email=email, 
         username=username, 
+        system=system,
         password=get_password_hash(password) if password else None,
         is_superuser=is_superuser
     )
@@ -179,8 +188,8 @@ def create_user(db: Session, email: str, username: str, password: str = None, is
     db.refresh(user)
     return user
 
-def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
-    user = get_user_by_email(db, email) or get_user_by_username(db, email)
+def authenticate_user(db: Session, email: str, password: str, system: str) -> Optional[User]:
+    user = get_user_by_email(db, email, system) or get_user_by_username(db, email, system)
     if not user or not user.is_active or not user.password:
         return None
     if not verify_password(password, user.password):
@@ -216,10 +225,15 @@ async def get_current_user(
         )
     
     user_id = payload.get("sub")
+    system = payload.get("system")
     
+    if not system:
+        logger.warning(" [Auth-Audit] Missing 'system' context in token.")
+        raise HTTPException(status_code=401, detail="LibAuth: Missing system context")
+
     # [Sovereign Security] Session Invalidation Check
-    if not is_session_valid(db, user_id):
-        logger.warning(f" [Auth-Audit] Revoked session for user {user_id}")
+    if not is_session_valid(db, user_id, system):
+        logger.warning(f" [Auth-Audit] Revoked session for user {user_id} in system {system}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="LibAuth: Session has been revoked or expired",
@@ -238,11 +252,11 @@ async def get_current_user(
 
 # --- RBAC Management (v6.8) ---
 
-def update_or_create_role(db: Session, name: str, permissions: List[str]):
+def update_or_create_role(db: Session, name: str, system: str, permissions: List[str]):
     from .models import Role, Permission
-    role = db.query(Role).filter(Role.name == name).first()
+    role = db.query(Role).filter(Role.name == name, Role.system == system).first()
     if not role:
-        role = Role(name=name, description=f"Custom role: {name}")
+        role = Role(name=name, system=system, description=f"Custom role: {name} for {system}")
         db.add(role)
         db.commit()
         db.refresh(role)
@@ -250,9 +264,9 @@ def update_or_create_role(db: Session, name: str, permissions: List[str]):
     # Sync permissions
     role.permissions = []
     for p_name in permissions:
-        perm = db.query(Permission).filter(Permission.name == p_name).first()
+        perm = db.query(Permission).filter(Permission.name == p_name, Permission.system == system).first()
         if not perm:
-            perm = Permission(name=p_name, description=f"Auto-generated permission: {p_name}")
+            perm = Permission(name=p_name, system=system, description=f"Auto-generated permission: {p_name} for {system}")
             db.add(perm)
             db.flush()
         role.permissions.append(perm)

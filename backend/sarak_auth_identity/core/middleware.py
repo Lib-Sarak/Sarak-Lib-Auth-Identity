@@ -25,6 +25,9 @@ async def identity_middleware(request: Request, call_next):
         "/catalog/models", 
         "/catalog/status",
         "/discovery",
+        "/ui/modules",
+        "/translator-google/languages/active",
+        "/llm-test-chat/models",
         "/docs", 
         "/openapi.json"
     ]

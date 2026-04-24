@@ -32,9 +32,15 @@ class Permission(Base):
     __table_args__ = {'schema': 'sarak_auth'}
     
     permission_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(100), unique=True, nullable=False, index=True)
+    name = Column(String(100), nullable=False, index=True)
+    system = Column(String(50), nullable=False, index=True)
     description = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('name', 'system', name='uq_permission_name_system'),
+        {'schema': 'sarak_auth'}
+    )
 
 class Role(Base):
     """User categories/roles (ex: 'ADMIN', 'OPERATOR')"""
@@ -42,9 +48,15 @@ class Role(Base):
     __table_args__ = {'schema': 'sarak_auth'}
     
     role_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(50), nullable=False, index=True)
+    system = Column(String(50), nullable=False, index=True)
     description = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('name', 'system', name='uq_role_name_system'),
+        {'schema': 'sarak_auth'}
+    )
     
     permissions = relationship("Permission", secondary=role_permissions, backref="roles")
 
@@ -54,14 +66,21 @@ class User(Base):
     __table_args__ = {'schema': 'sarak_auth'}
     
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    username = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    username = Column(String(100), nullable=False, index=True)
+    system = Column(String(50), nullable=False, index=True)
     password = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
     must_change_password = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('email', 'system', name='uq_user_email_system'),
+        UniqueConstraint('username', 'system', name='uq_user_username_system'),
+        {'schema': 'sarak_auth'}
+    )
     
     roles = relationship("Role", secondary=user_roles, backref="users")
 
@@ -72,6 +91,7 @@ class UserSession(Base):
     
     session_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("sarak_auth.users.user_id", ondelete="CASCADE"), nullable=False)
+    system = Column(String(50), nullable=False, index=True)
     refresh_token = Column(String(512), unique=True, nullable=False, index=True)
     user_agent = Column(String(255))
     ip_address = Column(String(50))
@@ -86,6 +106,7 @@ class UserInteraction(Base):
     
     interaction_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("sarak_auth.users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    system = Column(String(50), nullable=False, index=True)
     module_id = Column(String(100), nullable=False, index=True)
     action = Column(String(100), nullable=False)
     payload = Column(JSONB, nullable=True)

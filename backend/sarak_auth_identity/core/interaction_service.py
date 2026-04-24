@@ -13,7 +13,7 @@ class InteractionService:
     """
     
     @staticmethod
-    def log_interaction(db: Session, module_id: str, action: str, payload: dict = None):
+    def log_interaction(db: Session, system: str, module_id: str, action: str, payload: dict = None):
         """
         Logs an interaction.
         If SARAK_INTERACTION_MODE is 'db', it persists in the sovereign database.
@@ -31,13 +31,14 @@ class InteractionService:
                 from uuid import UUID
                 interaction = UserInteraction(
                     user_id=UUID(uid) if isinstance(uid, str) else uid,
+                    system=system,
                     module_id=module_id,
                     action=action,
                     payload=payload
                 )
                 db.add(interaction)
                 db.commit()
-                logger.info(f" [Interaction:DB] Logged: {action} for module {module_id}")
+                logger.info(f" [Interaction:DB] Logged: {action} for module {module_id} (System: {system})")
             except Exception as e:
                 logger.error(f" [Interaction:DB] Failed to persist: {e}")
                 db.rollback()

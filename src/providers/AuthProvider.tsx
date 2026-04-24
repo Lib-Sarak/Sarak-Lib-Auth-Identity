@@ -15,39 +15,39 @@ export const useAuth = () => {
     return context;
 };
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export const AuthProvider = ({ children, system = 'global' }: { children: ReactNode, system?: string }) => {
     const [user, setUser] = useState<UserProfile | null>(null);
-    const [token, setToken] = useState<string | null>(localStorage.getItem('sarak_token'));
+    const [token, setToken] = useState<string | null>(localStorage.getItem(`${system}_token`));
     const [loading, setLoading] = useState(true);
     const [isHydrated, setIsHydrated] = useState(false);
 
     const logout = useCallback(async () => {
-        const refreshToken = localStorage.getItem('sarak_refresh_token');
+        const refreshToken = localStorage.getItem(`${system}_refresh_token`);
         if (refreshToken) {
             await AuthFlowService.logout(refreshToken);
         }
         setToken(null);
         setUser(null);
-        localStorage.removeItem('sarak_token');
-        localStorage.removeItem('sarak_refresh_token');
-        localStorage.removeItem('sarak_user');
+        localStorage.removeItem(`${system}_token`);
+        localStorage.removeItem(`${system}_refresh_token`);
+        localStorage.removeItem(`${system}_user`);
         window.location.href = '/login';
-    }, []);
+    }, [system]);
 
     const login = async (identification: string, password?: string) => {
         setLoading(true);
         try {
-            const result = await AuthFlowService.login(identification, password);
+            const result = await AuthFlowService.login(identification, password, system);
             
             if (result.success) {
                 setToken(result.token);
                 setUser(result.user);
-                localStorage.setItem('sarak_token', result.token);
-                localStorage.setItem('sarak_refresh_token', result.refreshToken);
-                localStorage.setItem('sarak_user', JSON.stringify(result.user));
+                localStorage.setItem(`${system}_token`, result.token);
+                localStorage.setItem(`${system}_refresh_token`, result.refreshToken);
+                localStorage.setItem(`${system}_user`, JSON.stringify(result.user));
                 
                 // Log interaction
-                InteractionService.logInteraction('auth', 'login_success', { username: identification });
+                InteractionService.logInteraction(system, 'auth', 'login_success', { username: identification });
                 
                 setLoading(false);
                 return { success: true, token: result.token, user: result.user };
@@ -62,34 +62,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const registerAPI = async (email: string, password: string) => {
-        return await AuthFlowService.register(email, password);
+        return await AuthFlowService.register(email, password, system);
     };
 
     // Auto-refresh mechanism
     const refreshToken = useCallback(async () => {
-        const storedRefreshToken = localStorage.getItem('sarak_refresh_token');
+        const storedRefreshToken = localStorage.getItem(`${system}_refresh_token`);
         if (!storedRefreshToken) return false;
 
         const result = await AuthFlowService.refresh(storedRefreshToken);
         if (result.success) {
             setToken(result.token);
-            localStorage.setItem('sarak_token', result.token);
+            localStorage.setItem(`${system}_token`, result.token);
             return true;
         } else {
             logout();
             return false;
         }
-    }, [logout]);
+    }, [logout, system]);
 
     // Hydration
     useEffect(() => {
-        const storedUser = localStorage.getItem('sarak_user');
+        const storedUser = localStorage.getItem(`${system}_user`);
         if (storedUser && storedUser !== 'undefined') {
             setUser(JSON.parse(storedUser));
         }
         setIsHydrated(true);
         setLoading(false);
-    }, []);
+    }, [system]);
 
     const value = useMemo(() => ({
         user,

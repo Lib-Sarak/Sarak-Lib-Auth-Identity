@@ -1,15 +1,29 @@
 import { authApi } from '../../api/auth-client';
+import { maskUserData } from '../../utils/masking';
+
+const formatError = (error: any): string => {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+        return detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', ');
+    }
+    if (typeof detail === 'object' && detail !== null) {
+        return JSON.stringify(detail);
+    }
+    return 'Erro inesperado.';
+};
 
 /**
  * AuthFlowService (v7.0)
  * Responsabilidade: Gerenciar ciclos de vida de sessão (Login, Refresh, Logout).
  */
 export const AuthFlowService = {
-    login: async (identification: string, password?: string) => {
+    login: async (identification: string, password?: string, system?: string) => {
         try {
             const response = await (authApi as any).post('/login', { 
                 email: identification, 
-                password 
+                password,
+                system
             });
             const { access_token, refresh_token, user: userData } = response.data;
             
@@ -17,14 +31,16 @@ export const AuthFlowService = {
                 success: true, 
                 token: access_token, 
                 refreshToken: refresh_token,
-                user: userData,
+                user: maskUserData(userData),
                 status: response.status 
             };
         } catch (error: any) {
             return { 
                 success: false, 
                 status: error.response?.status,
-                error: error.response?.data?.detail || 'Usuário ou senha inválidos.' 
+                error: error.response?.status === 422 
+                    ? `Erro de Validação: ${formatError(error)}` 
+                    : (error.response?.data?.detail || 'Usuário ou senha inválidos.')
             };
         }
     },
@@ -47,19 +63,22 @@ export const AuthFlowService = {
         }
     },
 
-    register: async (email: string, password: string) => {
+    register: async (email: string, password: string, system: string) => {
         try {
             await (authApi as any).post('/register', { 
                 username: email, 
                 email: email, 
-                password 
+                password,
+                system
             });
             return { success: true };
         } catch (error: any) {
             return { 
                 success: false, 
                 status: error.response?.status,
-                error: error.response?.data?.detail || 'Erro ao criar conta.' 
+                error: error.response?.status === 422 
+                    ? `Erro de Registro: ${formatError(error)}` 
+                    : (error.response?.data?.detail || 'Erro ao criar conta.')
             };
         }
     }
