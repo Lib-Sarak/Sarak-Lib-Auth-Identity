@@ -8,6 +8,9 @@ from .core.seed import seed_auth_identity
 from .core.middleware import identity_middleware, tenant_middleware
 from .core.overrides import _get_identity_db, get_real_current_user
 from .core.isolation import setup_sovereign_isolation
+from .api.limiter import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
 # Initialize Sovereign Isolation Engine (v6.8)
 setup_sovereign_isolation()
@@ -21,5 +24,8 @@ __all__ = [
     "identity_middleware",
     "tenant_middleware",
     "_get_identity_db",
-    "get_real_current_user"
+    "get_real_current_user",
+    "limiter",
+    "RateLimitExceeded",
+    "_rate_limit_exceeded_handler"
 ]

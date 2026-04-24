@@ -19,6 +19,7 @@ async def identity_middleware(request: Request, call_next):
     # We check if the path ends with these segments to be prefix-agnostic
     EXEMPT_SUFFIXES = [
         "/login", 
+        "/login/mfa",
         "/register", 
         "/status",
         "/refresh",

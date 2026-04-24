@@ -17,6 +17,7 @@ from sqlalchemy import func
 import os
 import secrets
 from typing import List, Dict, Any
+import pyotp
 
 logger = logging.getLogger(__name__)
 
@@ -24,18 +25,15 @@ logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Identity JWT configuration (v5.1)
-# Priority: ENV > Settings > Secure Fallback
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "SarakSecurityKey2026OperationalKeyV1")
+# Strictly enforced ENV-only configuration
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
-if not os.getenv("JWT_SECRET_KEY"):
-    logger.warning(" [AUTH] JWT_SECRET_KEY not found in ENV. Using Operational Fallback.")
-    SECRET_KEY = "SarakSecurityKey2026OperationalKeyV1"
-else:
-    logger.info(f"[Sarak Auth] JWT_SECRET_KEY loaded successfully (Start: {SECRET_KEY[:5]}...)")
+if not SECRET_KEY:
+    raise RuntimeError("[FATAL] JWT_SECRET_KEY not found in environment variables. Sarak security requires explicit secrets management.")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Security Standard: 30 minutes
 
 # --- Password Utilities ---
 
@@ -60,8 +58,10 @@ def get_password_hash(password: str) -> str:
 # --- JWT Core ---
 
 def get_secret_key() -> str:
-    """Returns the secret key from environment with unified fallback."""
-    key = os.getenv("JWT_SECRET_KEY", "SarakSecurityKey2026OperationalKeyV1")
+    """Returns the secret key from environment with mandatory check."""
+    key = os.getenv("JWT_SECRET_KEY")
+    if not key:
+        raise RuntimeError("JWT_SECRET_KEY is required but not set.")
     return key.strip()
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -89,6 +89,39 @@ def verify_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+# --- MFA Logic (v7.7) ---
+
+def generate_mfa_setup(user: User) -> Dict[str, str]:
+    """Generates a new TOTP secret and provisioning URI for the user."""
+    secret = pyotp.random_base32()
+    # Sarak v7.7: The issuer is standardized to "Sarak (SystemName)"
+    totp = pyotp.TOTP(secret)
+    provisioning_uri = totp.provisioning_uri(
+        name=user.email, 
+        issuer_name=f"Sarak ({user.system})"
+    )
+    return {"secret": secret, "uri": provisioning_uri}
+
+def verify_mfa_code(user: User, code: str, secret_override: str = None) -> bool:
+    """Verifies the 6-digit TOTP code against the user's secret."""
+    secret = secret_override or user.mfa_secret
+    if not secret:
+        return False
+    totp = pyotp.TOTP(secret)
+    # 0 is the default window, we allow 1 (30 seconds before/after) for clock drift
+    return totp.verify(code, valid_window=1)
+
+def create_mfa_challenge_token(user: User) -> str:
+    """Creates a short-lived token to perform the MFA verification after password success."""
+    to_encode = {
+        "sub": str(user.user_id),
+        "system": user.system,
+        "type": "mfa_challenge",
+        "exp": datetime.utcnow() + timedelta(minutes=5)
+    }
+    current_key = get_secret_key()
+    return jwt.encode(to_encode, current_key, algorithm=ALGORITHM)
 
 # --- Session & Revocation ---
 
@@ -132,8 +165,6 @@ def is_session_valid(db: Session, user_id: str, system: str) -> bool:
     return session is not None
 
 # --- RBAC Utilities ---
-
-    return False
 
 def has_permission(user: User, permission_name: str) -> bool:
     """Verifica permissÃµes granulares (v5.5)."""
@@ -184,10 +215,13 @@ def get_user_by_username(db: Session, username: str, system: str) -> Optional[Us
         User.system == system
     ).first()
 
-def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
+def get_user_by_id(db: Session, user_id: str, system: str) -> Optional[User]:
     from uuid import UUID
     try:
-        return db.query(User).filter(User.user_id == UUID(user_id)).first()
+        return db.query(User).filter(
+            User.user_id == UUID(user_id) if isinstance(user_id, str) else user_id,
+            User.system == system
+        ).first()
     except (ValueError, TypeError):
         return None
 
@@ -258,7 +292,7 @@ async def get_current_user(
         )
     
     try:
-        user = get_user_by_id(db, user_id)
+        user = get_user_by_id(db, user_id, system)
         if not user:
             raise HTTPException(status_code=401, detail="Identity not found")
         
@@ -351,7 +385,7 @@ def confirm_password_reset(db: Session, token: str, new_password: str, system: s
     if not record:
         return False
         
-    user = get_user_by_id(db, record.user_id)
+    user = get_user_by_id(db, record.user_id, system)
     if user:
         user.password = get_password_hash(new_password)
         db.delete(record)
@@ -406,3 +440,16 @@ def can_access_level(user: User, required_level: int) -> bool:
         max_level = max([role.level for role in user.roles])
         
     return max_level >= required_level
+def change_password(db: Session, user: User, current_password: str, new_password: str) -> bool:
+    """Valida a senha atual e define a nova senha (v8.0)."""
+    if not verify_password(current_password, user.password):
+        return False
+    
+    # Política básica: não pode ser igual à anterior
+    if current_password == new_password:
+        return False
+
+    user.password = get_password_hash(new_password)
+    user.must_change_password = False
+    db.commit()
+    return True

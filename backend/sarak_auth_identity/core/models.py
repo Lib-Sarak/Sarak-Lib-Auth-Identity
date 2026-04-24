@@ -80,6 +80,13 @@ class User(Base):
     oauth_id = Column(String(255), nullable=True)
     avatar_url = Column(Text, nullable=True)
     
+    # MFA Fields (v7.7)
+    mfa_enabled = Column(Boolean, default=False, nullable=False)
+    mfa_secret = Column(String(100), nullable=True)
+    
+    # Preferences (v8.0)
+    preferences = Column(JSONB, nullable=True, server_default='{}')
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

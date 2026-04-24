@@ -32,8 +32,13 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState<string>('');
     const [isPending, setIsPending] = useState(false);
+    
+    // MFA State (v7.7)
+    const [mfaStep, setMfaStep] = useState(false);
+    const [mfaToken, setMfaToken] = useState<string | null>(null);
+    const [mfaCode, setMfaCode] = useState('');
 
-    const { login: loginAPI, register: registerAPI } = useAuth();
+    const { login: loginAPI, register: registerAPI, verifyMFA } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -45,26 +50,49 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
         setError('');
         setIsPending(true);
 
+        if (mfaStep && mfaToken) {
+            const mfaResult = await verifyMFA(mfaToken, mfaCode);
+            if (mfaResult.success) {
+                onSuccess?.();
+                setIsPending(false);
+                navigate(from, { replace: true });
+            } else {
+                setError(mfaResult.error || 'Código MFA inválido.');
+                setIsPending(false);
+            }
+            return;
+        }
+
         if (isRegistering) {
             const regResult = await registerAPI(username, password);
             if (regResult.success) {
-                // Após registro, logar automaticamente
                 const loginResult = await loginAPI(username, password);
-                if (loginResult.success && loginResult.token) {
-                    onSuccess?.(); // Notifica sucesso
-                    setIsPending(false); // Libera o estado
-                    navigate(from, { replace: true });
+                if (loginResult.success) {
+                    if (loginResult.mfa_required) {
+                        setMfaStep(true);
+                        setMfaToken(loginResult.mfa_token!);
+                    } else {
+                        onSuccess?.();
+                        navigate(from, { replace: true });
+                    }
                 }
+                setIsPending(false);
             } else {
                 setError(regResult.error || 'Erro ao criar conta');
                 setIsPending(false);
             }
         } else {
             const result = await loginAPI(username, password);
-            if (result.success && result.token) {
-                onSuccess?.(); // Notifica sucesso
-                setIsPending(false); // Libera o estado
-                navigate(from, { replace: true });
+            if (result.success) {
+                if (result.mfa_required) {
+                    setMfaStep(true);
+                    setMfaToken(result.mfa_token!);
+                    setIsPending(false);
+                } else if (result.token) {
+                    onSuccess?.();
+                    setIsPending(false);
+                    navigate(from, { replace: true });
+                }
             } else {
                 setError(result.error || 'Erro ao realizar login');
                 setIsPending(false);
@@ -155,73 +183,111 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
 
                     <div className="mb-8">
                         <h3 className="text-3xl font-black text-theme-text mb-2 tracking-tight">
-                            {isRegistering ? 'Criação de Conta' : 'Login do Sistema'}
+                            {mfaStep ? 'Verificação MFA' : (isRegistering ? 'Criação de Conta' : 'Login do Sistema')}
                         </h3>
                         <p className="text-theme-muted font-medium">
-                            {isRegistering ? 'Digite seu e-mail e escolha uma senha segura.' : 'Insira suas credenciais para continuar.'}
+                            {mfaStep 
+                                ? 'Insira o código de 6 dígitos gerado pelo seu app de autenticação.' 
+                                : (isRegistering ? 'Digite seu e-mail e escolha uma senha segura.' : 'Insira suas credenciais para continuar.')
+                            }
                         </p>
                     </div>
 
                     <AnimatePresence mode="wait">
                         {error && (
                             <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm font-medium"
+                                initial={{ opacity: 0, height: 0, y: -20 }}
+                                animate={{ opacity: 1, height: 'auto', y: 0 }}
+                                exit={{ opacity: 0, height: 0, y: -20 }}
+                                className={cn(
+                                    "mb-6 p-4 border rounded-xl flex items-center gap-3 text-sm font-medium shadow-lg transition-all",
+                                    error.includes('tentativas') 
+                                        ? "bg-amber-500/10 border-amber-500/30 text-amber-400" // Toast Sarak Amigável para 429
+                                        : "bg-red-500/10 border-red-500/20 text-red-400"
+                                )}
                             >
-                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                                {error}
+                                <div className={cn("w-2.5 h-2.5 rounded-full animate-pulse", error.includes('tentativas') ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]" : "bg-red-500")}></div>
+                                <span className="flex-1">{error}</span>
                             </motion.div>
                         )}
                     </AnimatePresence>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">E-mail de Acesso</label>
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-blue-500 text-slate-500">
-                                    <User className="h-5 w-5" />
+                        {!mfaStep ? (
+                            <>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">E-mail de Acesso</label>
+                                    <div className="relative group">
+                                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-blue-500 text-slate-500">
+                                            <User className="h-5 w-5" />
+                                        </div>
+                                        <input
+                                            type="email"
+                                            required
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
+                                            className="block w-full pl-11 pr-4 py-4 sarak-glass bg-theme-card border border-theme-border rounded-sarak focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
+                                            placeholder="seu@email.com"
+                                            autoComplete="off"
+                                        />
+                                    </div>
                                 </div>
-                                <input
-                                    type="email"
-                                    required
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    className="block w-full pl-11 pr-4 py-4 sarak-glass bg-theme-card border border-theme-border rounded-sarak focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
-                                    placeholder="seu@email.com"
-                                    autoComplete="off"
-                                />
-                            </div>
-                        </div>
 
-                        <div className="space-y-1.5">
-                            <div className="flex items-center justify-between px-1">
-                                <label className="text-xs font-bold text-theme-muted uppercase tracking-widest">Senha</label>
-                                {!isRegistering && <button type="button" className="text-xs font-bold text-theme-primary hover:opacity-80 transition-colors">Esqueceu?</button>}
-                            </div>
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-theme-primary text-theme-muted">
-                                    <Lock className="h-5 w-5" />
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between px-1">
+                                        <label className="text-xs font-bold text-theme-muted uppercase tracking-widest">Senha</label>
+                                        {!isRegistering && <button type="button" className="text-xs font-bold text-theme-primary hover:opacity-80 transition-colors">Esqueceu?</button>}
+                                    </div>
+                                    <div className="relative group">
+                                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-theme-primary text-theme-muted">
+                                            <Lock className="h-5 w-5" />
+                                        </div>
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            required
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="block w-full pl-11 pr-12 py-4 sarak-glass bg-theme-card border border-theme-border rounded-sarak focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
+                                            placeholder="••••••••"
+                                            autoComplete="new-password"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute inset-y-0 right-0 pr-4 flex items-center text-theme-muted hover:text-theme-text transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                        </button>
+                                    </div>
                                 </div>
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="block w-full pl-11 pr-12 py-4 sarak-glass bg-theme-card border border-theme-border rounded-sarak focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium"
-                                    placeholder="••••••••"
-                                    autoComplete="new-password"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-theme-muted hover:text-theme-text transition-colors"
+                            </>
+                        ) : (
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Código de Segurança</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-blue-500 text-slate-500">
+                                        <ShieldCheck className="h-5 w-5" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        required
+                                        maxLength={6}
+                                        value={mfaCode}
+                                        onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                                        className="block w-full pl-11 pr-4 py-4 sarak-glass bg-theme-card border border-theme-border rounded-sarak focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary outline-none transition-all placeholder:text-theme-muted/30 text-theme-text font-medium text-center text-2xl tracking-[0.5em]"
+                                        placeholder="000000"
+                                        autoFocus
+                                    />
+                                </div>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setMfaStep(false)}
+                                    className="text-xs font-bold text-theme-muted hover:text-theme-primary transition-colors mt-2"
                                 >
-                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                    ← Voltar para senha
                                 </button>
                             </div>
-                        </div>
+                        )}
 
                         <button
                             type="submit"
@@ -231,7 +297,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                             {isPending ? (
                                 <Loader2 className="w-5 h-5 animate-spin" />
                             ) : (
-                                <>{isRegistering ? 'Criar Minha Conta' : 'Acessar Sistema'} <ChevronRight className="w-4 h-4" /></>
+                                <>{mfaStep ? 'Confirmar Acesso' : (isRegistering ? 'Criar Minha Conta' : 'Acessar Sistema')} <ChevronRight className="w-4 h-4" /></>
                             )}
                         </button>
                     </form>
@@ -249,7 +315,6 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                                 ENTRAR COMO MASTER
                             </button>
                         )}
-
                     </div>
 
                     <div className="mt-10 pt-8 border-t border-slate-900 text-center">

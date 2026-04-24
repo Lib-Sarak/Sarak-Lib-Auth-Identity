@@ -15,7 +15,10 @@ setup(
         "fastapi",
         "passlib[bcrypt]",
         "bcrypt",
-        "email-validator"
+        "email-validator",
+        "slowapi",
+        "pyotp",
+        "qrcode"
     ],
     author="Igor Sarak",
     description="Módulo de Identidade e Autenticação Base (Sarak Library)",

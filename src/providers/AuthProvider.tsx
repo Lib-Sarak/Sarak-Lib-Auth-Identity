@@ -40,10 +40,20 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
             const result = await AuthFlowService.login(identification, password, system);
             
             if (result.success) {
+                if (result.mfa_required) {
+                    setLoading(false);
+                    return { 
+                        success: true, 
+                        mfa_required: true, 
+                        mfa_token: result.mfa_token,
+                        user: result.user 
+                    };
+                }
+
                 setToken(result.token);
                 setUser(result.user);
-                localStorage.setItem(`${system}_token`, result.token);
-                localStorage.setItem(`${system}_refresh_token`, result.refreshToken);
+                localStorage.setItem(`${system}_token`, result.token!);
+                localStorage.setItem(`${system}_refresh_token`, result.refreshToken!);
                 localStorage.setItem(`${system}_user`, JSON.stringify(result.user));
                 
                 // Log interaction
@@ -59,6 +69,39 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
             setLoading(false);
             return { success: false, error: 'Erro inesperado na autenticação' };
         }
+    };
+
+    const verifyMFA = async (mfaToken: string, code: string) => {
+        setLoading(true);
+        try {
+            const result = await AuthFlowService.verifyMFA(mfaToken, code, system);
+            if (result.success) {
+                setToken(result.token!);
+                setUser(result.user);
+                localStorage.setItem(`${system}_token`, result.token!);
+                localStorage.setItem(`${system}_refresh_token`, result.refreshToken!);
+                localStorage.setItem(`${system}_user`, JSON.stringify(result.user));
+                
+                InteractionService.logInteraction(system, 'auth', 'login_mfa_success', { user_id: result.user?.user_id });
+                
+                setLoading(false);
+                return { success: true, token: result.token, user: result.user };
+            } else {
+                setLoading(false);
+                return { success: false, error: result.error };
+            }
+        } catch (error) {
+            setLoading(false);
+            return { success: false, error: 'Erro ao verificar código MFA' };
+        }
+    };
+
+    const setupMFA = async () => {
+        return await AuthFlowService.setupMFA();
+    };
+
+    const enableMFA = async (code: string) => {
+        return await AuthFlowService.enableMFA(code);
     };
 
     const registerAPI = async (email: string, password: string) => {
@@ -98,11 +141,14 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
         isHydrated,
         register: registerAPI,
         login,
+        verifyMFA,
+        setupMFA,
+        enableMFA,
         logout,
         refreshToken,
         logInteraction: InteractionService.logInteraction,
         authApi
-    }), [user, token, loading, isHydrated, logout, refreshToken]);
+    }), [user, token, loading, isHydrated, logout, refreshToken, verifyMFA, setupMFA, enableMFA]);
 
     return (
         <AuthContext.Provider value={value}>

@@ -17,12 +17,21 @@ export const authApi = axios.create({
 // Exportação secundária para compatibilidade
 export const api = authApi;
 
-// Interceptor de Token para persistência de sessão
+// Interceptor de Token com Isolamento por Sistema (v6.0)
 authApi.interceptors.request.use((config) => {
-    const token = localStorage.getItem('sarak_token');
+    // Obtenção segura do identificador do sistema via contexto global
+    const system = (window as any).__SARAK_SYSTEM__ || 'global';
+    
+    // Recuperação de token isolado para o sistema atual
+    const token = localStorage.getItem(`${system}_token`);
+    
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Injeção obrigatória do contexto do sistema para o backend
+    config.headers['X-Sarak-System'] = system;
+    
     return config;
 });
 

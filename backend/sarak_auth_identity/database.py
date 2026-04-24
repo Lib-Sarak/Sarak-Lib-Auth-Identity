@@ -93,6 +93,13 @@ def setup_identity_db(ext_engine=None):
             conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS oauth_id VARCHAR(255)"))
             conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS avatar_url TEXT"))
             
+            # MFA Columns (v7.7 Migration)
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS mfa_secret VARCHAR(100)"))
+            
+            # Preferences (v8.0 Migration)
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{{}}'"))
+            
             conn.commit()
         
         logger.info(f" [Auth DB] Sovereignty: Schema '{SCHEMA_NAME}' and multi-tenant columns verified.")

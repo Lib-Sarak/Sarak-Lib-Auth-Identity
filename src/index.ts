@@ -1,31 +1,126 @@
-import { RBACManager } from "./components/rbac/RBACManager";
-import { AuthFlowService } from "./services/auth/AuthFlowService";
-import { GovernanceService } from "./services/rbac/GovernanceService";
-import { InteractionService } from "./services/audit/InteractionService";
-import { StorageManager } from "./services/storage/StorageManager";
-import { HydrationService } from "./services/hydration/HydrationService";
-import { maskUserData } from "./utils/masking";
-
 /**
- * Manifesto de Identidade (v7.0 - Granular)
- * Exposição de componentes via Sarak Module Discovery
+ * Manifesto de Identidade (v7.0 - Agnóstico)
+ * Sincronizado explicitamente para garantir soberania de descoberta em ambientes hot-reload.
  */
 export const AuthModuleManifest = {
-    id: "sarak-lib-auth-identity",
-    label: "Sovereign Identity",
-    icon: "User",
-    category: "Sistema",
-    priority: 100,
-    components: {
-        RBACManager
+  "contract": "v6.8",
+  "id": "sarak-lib-auth-identity",
+  "label": "Sovereign Identity",
+  "icon": "ShieldCheck",
+  "category": "Core Security",
+  "version": "6.8.0",
+  "priority": 0,
+  "endpoints": {
+    "v1": {
+      "manifest": "/module/manifest",
+      "login": "/login",
+      "refresh": "/refresh",
+      "logout": "/logout",
+      "register": "/register",
+      "me": "/me",
+      "users": "/users",
+      "interactions": "/interactions",
+      "roles": "/roles",
+      "permissions": "/permissions",
+      "mfa_setup": "/mfa/setup",
+      "mfa_enable": "/mfa/enable",
+      "mfa_verify": "/login/mfa",
+      "mfa_orch": "/",
+      "change_password": "/change-password",
+      "preferences": "/preferences"
     }
+  },
+  "visualContracts": [
+    {
+      "id": "users_directory",
+      "type": "TABLE",
+      "label": "Diretório de Usuários",
+      "endpoint": "v1.users",
+      "tab": "Usuários",
+      "config": {
+        "actions": ["edit"],
+        "columns": ["email", "username", "role_names", "is_active"]
+      },
+      "mapping": {
+        "email": "E-mail",
+        "username": "Usuário",
+        "role_names": "Nível de Acesso",
+        "is_active": "Status"
+      }
+    },
+    {
+      "id": "rbac_governance_grid",
+      "type": "MANAGEMENT_GRID",
+      "label": "Gestão de Papéis e Segurança",
+      "tab": "Matriz de Acesso",
+      "endpoint": "v1.roles",
+      "groupBy": "system",
+      "mapping": {
+        "id": "role_id",
+        "title": "name",
+        "status": "status",
+        "isActive": "is_active",
+        "description": "description"
+      },
+      "formMapping": {
+        "name": "Nome do Papel",
+        "description": "Descrição da Responsabilidade"
+      }
+    },
+    {
+      "id": "account_profile_form",
+      "type": "FORM",
+      "label": "Configurações de Perfil",
+      "tab": "Minha Conta",
+      "endpoint": "v1.preferences",
+      "mapping": {
+        "language": "Idioma de Preferência",
+        "notifications": "Receber Notificações (S/N)",
+        "theme_preference": "Tema Preferencial"
+      },
+      "actions": [
+        { "label": "Salvar Preferências", "endpoint": "v1.preferences", "method": "PATCH" }
+      ]
+    },
+    {
+      "id": "account_password_form",
+      "type": "FORM",
+      "label": "Alteração de Credenciais",
+      "tab": "Minha Conta",
+      "endpoint": "v1.change_password",
+      "mapping": {
+        "current_password": "Senha Atual",
+        "new_password": "Nova Senha"
+      },
+      "actions": [
+        { "label": "Atualizar Senha", "endpoint": "v1.change_password", "method": "POST" }
+      ]
+    },
+    {
+      "id": "mfa_orchestrator",
+      "type": "SECURITY_ORCHESTRATOR",
+      "label": "Autenticação em Dois Fatores",
+      "tab": "Minha Conta",
+      "endpoint": "v1.mfa_orch"
+    },
+    {
+      "id": "identity_activity_chart",
+      "type": "CHART",
+      "label": "Linha do Tempo de Interações",
+      "endpoint": "v1.interactions",
+      "tab": "Auditoria",
+      "config": {
+        "type": "area",
+        "color": "indigo"
+      }
+    }
+  ],
+  "components": {}
 };
 
 // Exportações de Componentes
-export * from "./components/auth/Login"; 
+export * from "./components/auth/Login";
 export * from "./components/auth/ProtectedRoute";
-export * from "./components/rbac/RBACManager";
-export { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
 
 // Exportações de Provedores e Tipos
 export * from "./providers/AuthProvider";
@@ -41,19 +136,3 @@ export { StorageManager } from "./services/storage/StorageManager";
 export { HydrationService } from "./services/hydration/HydrationService";
 export { maskUserData, maskUserList } from "./utils/masking";
 
-/**
- * Legacy Support (v6.8)
- * Mantido para evitar quebras em módulos que ainda utilizam o motor unificado.
- */
-export const AuthIdentityEngine = {
-    ...AuthFlowService,
-    getMe: GovernanceService.getMe,
-    logInteraction: InteractionService.logInteraction,
-    
-    // Novo suporte a multi-tenancy v7.5
-    initialize: (system: string) => {
-        const storage = new StorageManager(system);
-        const hydration = new HydrationService(storage);
-        return { storage, hydration };
-    }
-};

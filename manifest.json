@@ -17,14 +17,37 @@
       "users": "/users",
       "interactions": "/interactions",
       "roles": "/roles",
-      "permissions": "/permissions"
+      "permissions": "/permissions",
+      "mfa_setup": "/mfa/setup",
+      "mfa_enable": "/mfa/enable",
+      "mfa_verify": "/login/mfa",
+      "mfa_orch": "/",
+      "change_password": "/change-password",
+      "preferences": "/preferences"
+    }
+  },
+  "capabilities": {
+    "security": {
+      "rateLimit": {
+        "handleStatus": 429,
+        "message": "Muitas tentativas. Por segurança, aguarde 1 minuto antes de tentar novamente."
+      },
+      "mfa": {
+        "type": "TOTP",
+        "challengeStatus": "MFA_REQUIRED",
+        "endpoints": {
+          "setup": "v1.mfa_setup",
+          "enable": "v1.mfa_enable",
+          "verify": "v1.mfa_verify"
+        }
+      }
     }
   },
   "visualContracts": [
     {
       "id": "users_directory",
       "type": "TABLE",
-      "label": "Diretório de Usuários e Acessos",
+      "label": "Diretório de Usuários",
       "endpoint": "v1.users",
       "tab": "Usuários",
       "config": {
@@ -39,38 +62,59 @@
       }
     },
     {
-      "id": "user_session_stats",
-      "type": "STATS",
-      "label": "Minha Identidade",
-      "endpoint": "v1.me",
-      "tab": "Usuários",
-      "mapping": {
-        "username": "Logado como",
-        "email": "E-mail Atual",
-        "is_active": "Sessão Ativa"
-      }
-    },
-    {
-      "id": "rbac_governance_panel",
-      "type": "CUSTOM",
-      "label": "Gestão de Camadas e Acesso",
-      "tab": "RBAC",
-      "component": "RBACManager",
+      "id": "rbac_governance_grid",
+      "type": "MANAGEMENT_GRID",
+      "label": "Gestão de Papéis e Segurança",
+      "tab": "Matriz de Acesso",
       "endpoint": "v1.roles",
-      "config": {
-        "fullWidth": true,
-        "transparent": true
+      "groupBy": "system",
+      "mapping": {
+        "id": "role_id",
+        "title": "name",
+        "status": "status",
+        "isActive": "is_active",
+        "description": "description"
+      },
+      "formMapping": {
+        "name": "Nome do Papel",
+        "description": "Descrição da Responsabilidade"
       }
     },
     {
-      "id": "active_sessions_count",
-      "type": "STATS",
-      "label": "Governança de Sessões",
-      "endpoint": "v1.me",
-      "tab": "Auditoria",
+      "id": "account_profile_form",
+      "type": "FORM",
+      "label": "Configurações de Perfil",
+      "tab": "Minha Conta",
+      "endpoint": "v1.preferences",
       "mapping": {
-        "active_sessions": "Conexões em Aberto"
-      }
+        "language": "Idioma de Preferência",
+        "notifications": "Receber Notificações (S/N)",
+        "theme_preference": "Tema Preferencial"
+      },
+      "actions": [
+        { "label": "Salvar Preferências", "endpoint": "v1.preferences", "method": "PATCH" }
+      ]
+    },
+    {
+      "id": "account_password_form",
+      "type": "FORM",
+      "label": "Alteração de Credenciais",
+      "tab": "Minha Conta",
+      "endpoint": "v1.change_password",
+      "mapping": {
+        "current_password": "Senha Atual",
+        "new_password": "Nova Senha"
+      },
+      "actions": [
+        { "label": "Atualizar Senha", "endpoint": "v1.change_password", "method": "POST" }
+      ]
+    },
+    {
+      "id": "mfa_orchestrator",
+      "type": "SECURITY_ORCHESTRATOR",
+      "label": "Autenticação em Dois Fatores",
+      "tab": "Minha Conta",
+      "endpoint": "v1.mfa_orch"
     },
     {
       "id": "identity_activity_chart",

@@ -18,6 +18,7 @@ from ..core.models import User, UserSession, UserInteraction, Role, Permission
 from ..database import get_db, engine, setup_identity_db
 from ..core.seed import seed_auth_identity
 from ..core.interaction_service import InteractionService
+from .limiter import limiter
 
 
 async def get_current_user(
@@ -82,10 +83,13 @@ class LoginRequest(BaseModel):
     system: str
 
 class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
-    user: dict  # Will be masked by masking utility
+    user: dict
+    status: Optional[str] = "success"
+    mfa_required: bool = False
+    mfa_token: Optional[str] = None
 
 class RefreshRequest(BaseModel):
     refresh_token: str
@@ -119,6 +123,8 @@ class UserResponse(BaseModel):
     role_names: Optional[str] = None
     permissions: List[str] = []
     active_sessions: int = 0
+    preferences: Optional[dict] = {}
+    mfa_enabled: bool = False
 
     class Config:
         from_attributes = True
@@ -141,6 +147,27 @@ class PasswordResetConfirm(BaseModel):
 class OAuthCallbackData(BaseModel):
     code: str
     system: str
+
+# --- MFA Schemas (v7.7) ---
+
+class MFASetupResponse(BaseModel):
+    secret: str
+    provisioning_uri: str
+
+class MFAVerifyRequest(BaseModel):
+    code: str
+
+class MFALoginRequest(BaseModel):
+    mfa_token: str
+    code: str
+    system: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class UserPreferencesUpdate(BaseModel):
+    preferences: dict
 
 # --- Security Dependencies ---
 
@@ -186,6 +213,7 @@ def update_role_permissions(
     return {"status": "success", "message": f"Permissões do papel {role.name} atualizadas com sucesso"}
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     user = auth_service.authenticate_user(db, data.email, data.password, data.system)
     if not user:
@@ -195,6 +223,15 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    if user.mfa_enabled:
+        mfa_token = auth_service.create_mfa_challenge_token(user)
+        return {
+            "status": "MFA_REQUIRED",
+            "mfa_required": True,
+            "mfa_token": mfa_token,
+            "user": {"email": user.email, "system": user.system}
+        }
+
     user_id_str = str(user.user_id)
     # Include system in JWT
     access_token = auth_service.create_access_token(data={"sub": user_id_str, "system": data.system})
@@ -258,7 +295,8 @@ def logout(data: RefreshRequest, db: Session = Depends(get_db)):
     return {"detail": "Logged out successfully"}
 
 @router.post("/register", response_model=UserResponse)
-def register(user_in: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def register(request: Request, user_in: UserCreate, db: Session = Depends(get_db)):
     try:
         user = auth_service.create_user(
             db,
@@ -405,10 +443,123 @@ def log_user_interaction(
     )
     return {"status": "ok"}
 
+# --- MFA Management Endpoints (v7.7) ---
+
+@router.get("/mfa/status")
+async def get_mfa_status(current_user: User = Depends(get_current_user)):
+    """Retorna o status atual do MFA para o usuário logado."""
+    return {
+        "enabled": current_user.mfa_enabled,
+        "method": "TOTP" if current_user.mfa_secret else None
+    }
+
+@router.api_route("/mfa/setup", methods=["GET", "POST"])
+async def mfa_setup(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Gera o segredo inicial para o MFA (v7.7)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # [Sovereign Attachment] Re-buscamos o usuário na sessão atual para evitar conflitos
+    local_user = db.query(User).filter(User.user_id == current_user.user_id, User.system == current_user.system).first()
+    if not local_user:
+        raise HTTPException(status_code=404, detail="User lost during session transition")
+
+    setup_data = auth_service.generate_mfa_setup(local_user)
+    local_user.mfa_secret = setup_data["secret"]
+    
+    db.commit()
+    db.refresh(local_user)
+    
+    logger.info(f" [MFA-Audit] Setup initiated for user {local_user.user_id}. Secret persisted.")
+    
+    return {
+        "secret": setup_data["secret"],
+        "provisioning_uri": setup_data["uri"]
+    }
+
+@router.post("/mfa/enable")
+async def mfa_enable(
+    data: MFAVerifyRequest, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Valida o primeiro código e ativa o MFA permanentemente."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # [Sovereign Attachment] Re-buscamos o usuário na sessão atual
+    local_user = db.query(User).filter(User.user_id == current_user.user_id, User.system == current_user.system).first()
+    if not local_user:
+        raise HTTPException(status_code=404, detail="User lost during session transition")
+    
+    if not local_user.mfa_secret:
+        logger.error(f" [MFA-Audit] Failed to enable MFA for {local_user.user_id}: Secret missing in DB.")
+        raise HTTPException(status_code=400, detail="MFA setup not initiated. Call /mfa/setup first.")
+    
+    if auth_service.verify_mfa_code(local_user, data.code):
+        local_user.mfa_enabled = True
+        db.commit()
+        
+        # Auditoria de segurança
+        InteractionService.log_security_event(db, local_user.user_id, local_user.system, "MFA_ENABLED")
+        logger.info(f" [MFA-Audit] MFA enabled successfully for user {local_user.user_id}.")
+        
+        return {"status": "success", "message": "MFA enabled successfully"}
+    else:
+        logger.warning(f" [MFA-Audit] Invalid MFA code attempt for user {local_user.user_id}.")
+        raise HTTPException(status_code=400, detail="Invalid MFA code. Verification failed.")
+
+@router.post("/login/mfa", response_model=TokenResponse)
+@limiter.limit("5/minute")
+def login_mfa(request: Request, data: MFALoginRequest, db: Session = Depends(get_db)):
+    """Verifica o desafio MFA e libera os tokens finais."""
+    payload = auth_service.verify_token(data.mfa_token)
+    if not payload or payload.get("type") != "mfa_challenge":
+        raise HTTPException(status_code=401, detail="Invalid or expired MFA challenge token")
+    
+    user_id = payload.get("sub")
+    system = data.system
+    
+    user = auth_service.get_user_by_id(db, user_id, system)
+    if not user or not user.mfa_enabled:
+        raise HTTPException(status_code=401, detail="User not found or MFA not enabled")
+    
+    if not auth_service.verify_mfa_code(user, data.code):
+        raise HTTPException(status_code=401, detail="Invalid MFA code")
+    
+    # Success: Issue full tokens
+    user_id_str = str(user.user_id)
+    access_token = auth_service.create_access_token(data={"sub": user_id_str, "system": system})
+    refresh_token = auth_service.create_refresh_token(data={"sub": user_id_str, "system": system})
+    
+    auth_service.create_session(
+        db, 
+        user_id=user_id_str, 
+        system=system,
+        refresh_token=refresh_token,
+        user_agent=request.headers.get("user-agent"),
+        ip=request.client.host
+    )
+    
+    InteractionService.log_interaction(db, system, "auth", "login_mfa", {"email": user.email})
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "user_id": user_id_str,
+            "username": user.username,
+            "email": user.email,
+            "system": user.system
+        }
+    }
+
 # --- Password Recovery Endpoints (v7.6) ---
 
 @router.post("/password-reset/request")
-def request_reset(data: PasswordResetRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def request_reset(request: Request, data: PasswordResetRequest, db: Session = Depends(get_db)):
     """Solicita um token de recuperação de senha."""
     token = auth_service.request_password_reset(db, data.email, data.system)
     if token:
@@ -491,4 +642,43 @@ async def oauth_callback(provider: str, data: OAuthCallbackData, db: Session = D
             "email": user.email,
             "system": user.system
         }
+    }
+
+# --- Account Management Endpoints (v8.0) ---
+
+@router.post("/change-password")
+def change_password(data: ChangePasswordRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Altera a senha do usuário logado."""
+    success = auth_service.change_password(db, current_user, data.current_password, data.new_password)
+    if not success:
+        raise HTTPException(status_code=400, detail="Senha atual incorreta ou nova senha inválida")
+    return {"message": "Senha alterada com sucesso"}
+
+@router.get("/preferences")
+def get_preferences(current_user: User = Depends(get_current_user)):
+    """Retorna as preferências do usuário logado."""
+    # Retorna um objeto plano para o SarakForm mapear facilmente
+    prefs = current_user.preferences or {}
+    return {
+        "language": prefs.get("language", "pt-BR"),
+        "notifications": prefs.get("notifications", "S"),
+        "theme_preference": prefs.get("theme_preference", "glass")
+    }
+
+@router.api_route("/preferences", methods=["PUT", "PATCH"])
+def update_preferences(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Atualiza as preferências do usuário logado."""
+    # Aceita payload flexível vindo do SarakForm
+    current_prefs = current_user.preferences or {}
+    current_prefs.update(data)
+    current_user.preferences = current_prefs
+    db.commit()
+    return current_user.preferences
+
+@router.get("/change-password")
+def get_change_password_fields():
+    """Endpoint dummy para satisfazer o GET inicial do SarakForm."""
+    return {
+        "current_password": "",
+        "new_password": ""
     }

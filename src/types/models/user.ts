@@ -13,6 +13,9 @@ export interface UserProfile {
     oauth_id?: string;
     avatar_url?: string;
     
+    // MFA (v7.7)
+    mfa_enabled?: boolean;
+    
     // UI Metadata
     last_login?: string;
 }
