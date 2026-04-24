@@ -243,12 +243,12 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setUsername('usuario@teste.com');
-                                    setPassword('test1234');
+                                    setUsername('master@seed.com');
+                                    setPassword('Sarak1234');
                                 }}
-                                className="w-full py-3 bg-theme-card/50 hover:bg-theme-card border border-theme-border hover:border-theme-primary/50 text-theme-primary rounded-sarak font-bold text-xs uppercase tracking-widest transition-all"
+                                className="w-full py-3 bg-theme-primary/10 hover:bg-theme-primary/20 border border-theme-primary/30 hover:border-theme-primary/50 text-theme-primary rounded-sarak font-black text-xs uppercase tracking-[0.2em] transition-all"
                             >
-                                Entrar como usuário teste
+                                ENTRAR COMO MASTER
                             </button>
                         )}
 

@@ -5,7 +5,7 @@ import axios from 'axios';
  * v5.5 - Independência total da lib-shared
  */
 
-const baseURL = '/api';
+const baseURL = '/api/auth';
 
 export const authApi = axios.create({
     baseURL,

@@ -1,34 +1,86 @@
 {
-  "contract": "v1",
+  "contract": "v6.8",
   "id": "sarak-lib-auth-identity",
-  "label": "Identidade & Acesso",
+  "label": "Sovereign Identity",
   "icon": "ShieldCheck",
-  "category": "Segurança",
+  "category": "Core Security",
   "version": "6.8.0",
   "priority": 0,
   "endpoints": {
     "v1": {
       "manifest": "/module/manifest",
       "login": "/login",
+      "refresh": "/refresh",
+      "logout": "/logout",
       "register": "/register",
-      "me": "/me"
-    },
-    "manifest": "/module/manifest",
-    "login": "/login",
-    "register": "/register",
-    "me": "/me"
+      "me": "/me",
+      "users": "/users",
+      "interactions": "/interactions",
+      "roles": "/roles",
+      "permissions": "/permissions"
+    }
   },
   "visualContracts": [
     {
-      "id": "user_profile_stats",
-      "type": "STATS",
-      "label": "Estado da Sessão",
-      "endpoint": "v1.me",
-      "tab": "Perfil",
+      "id": "users_directory",
+      "type": "TABLE",
+      "label": "Diretório de Usuários e Acessos",
+      "endpoint": "v1.users",
+      "tab": "Usuários",
+      "config": {
+        "actions": ["edit"],
+        "columns": ["email", "username", "role_names", "is_active"]
+      },
       "mapping": {
-        "username": "Nome de Usuário",
-        "email": "E-mail Principal",
-        "is_active": "Conta Ativa"
+        "email": "E-mail",
+        "username": "Usuário",
+        "role_names": "Nível de Acesso",
+        "is_active": "Status"
+      }
+    },
+    {
+      "id": "user_session_stats",
+      "type": "STATS",
+      "label": "Minha Identidade",
+      "endpoint": "v1.me",
+      "tab": "Usuários",
+      "mapping": {
+        "username": "Logado como",
+        "email": "E-mail Atual",
+        "is_active": "Sessão Ativa"
+      }
+    },
+    {
+      "id": "rbac_governance_panel",
+      "type": "CUSTOM",
+      "label": "Gestão de Camadas e Acesso",
+      "tab": "RBAC",
+      "component": "RBACManager",
+      "endpoint": "v1.roles",
+      "config": {
+        "fullWidth": true,
+        "transparent": true
+      }
+    },
+    {
+      "id": "active_sessions_count",
+      "type": "STATS",
+      "label": "Governança de Sessões",
+      "endpoint": "v1.me",
+      "tab": "Auditoria",
+      "mapping": {
+        "active_sessions": "Conexões em Aberto"
+      }
+    },
+    {
+      "id": "identity_activity_chart",
+      "type": "CHART",
+      "label": "Linha do Tempo de Interações",
+      "endpoint": "v1.interactions",
+      "tab": "Auditoria",
+      "config": {
+        "type": "area",
+        "color": "indigo"
       }
     }
   ]

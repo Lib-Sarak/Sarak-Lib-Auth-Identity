@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, UniqueConstraint, Text, Boolean, Float
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, UniqueConstraint, Text, Boolean, Float, Table
 from sqlalchemy import Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -8,8 +8,48 @@ import uuid
 # Standard import from module root
 from ..database import Base
 
+# Association table for User <-> Role (Many-to-Many)
+user_roles = Table(
+    "user_roles_map",
+    Base.metadata,
+    Column("user_id", UUID(as_uuid=True), ForeignKey("sarak_auth.users.user_id", ondelete="CASCADE")),
+    Column("role_id", UUID(as_uuid=True), ForeignKey("sarak_auth.roles.role_id", ondelete="CASCADE")),
+    schema="sarak_auth"
+)
+
+# Association table for Role <-> Permission (Many-to-Many)
+role_permissions = Table(
+    "role_permissions_map",
+    Base.metadata,
+    Column("role_id", UUID(as_uuid=True), ForeignKey("sarak_auth.roles.role_id", ondelete="CASCADE")),
+    Column("permission_id", UUID(as_uuid=True), ForeignKey("sarak_auth.permissions.permission_id", ondelete="CASCADE")),
+    schema="sarak_auth"
+)
+
+class Permission(Base):
+    """Granular permission definitions (ex: 'user:write', 'catalog:view')"""
+    __tablename__ = "permissions"
+    __table_args__ = {'schema': 'sarak_auth'}
+    
+    permission_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    description = Column(String(255))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Role(Base):
+    """User categories/roles (ex: 'ADMIN', 'OPERATOR')"""
+    __tablename__ = "roles"
+    __table_args__ = {'schema': 'sarak_auth'}
+    
+    role_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(50), unique=True, nullable=False, index=True)
+    description = Column(String(255))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    permissions = relationship("Permission", secondary=role_permissions, backref="roles")
+
 class User(Base):
-    """Sarak Sovereign User Model (Identity & Access)"""
+    """Sarak Sovereign Identity User Model (v6.8)"""
     __tablename__ = "users"
     __table_args__ = {'schema': 'sarak_auth'}
     
@@ -18,8 +58,35 @@ class User(Base):
     username = Column(String(100), unique=True, nullable=False, index=True)
     password = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    is_superuser = Column(Boolean, default=False, nullable=False)
     must_change_password = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Reverse relationships are defined in other modules if necessary (v6.8 decoupling)
+    roles = relationship("Role", secondary=user_roles, backref="users")
+
+class UserSession(Base):
+    """Active user sessions for Refresh Token and revocation logic"""
+    __tablename__ = "user_sessions"
+    __table_args__ = {'schema': 'sarak_auth'}
+    
+    session_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("sarak_auth.users.user_id", ondelete="CASCADE"), nullable=False)
+    refresh_token = Column(String(512), unique=True, nullable=False, index=True)
+    user_agent = Column(String(255))
+    ip_address = Column(String(50))
+    is_revoked = Column(Boolean, default=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class UserInteraction(Base):
+    """Tracking of user interactions (Audit & Analytics)"""
+    __tablename__ = "user_interactions"
+    __table_args__ = {'schema': 'sarak_auth'}
+    
+    interaction_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("sarak_auth.users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    module_id = Column(String(100), nullable=False, index=True)
+    action = Column(String(100), nullable=False)
+    payload = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
