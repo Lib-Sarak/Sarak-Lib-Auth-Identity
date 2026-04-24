@@ -18,7 +18,9 @@ setup(
         "email-validator",
         "slowapi",
         "pyotp",
-        "qrcode"
+        "qrcode",
+        "httpx-oauth",
+        "httpx"
     ],
     author="Igor Sarak",
     description="Módulo de Identidade e Autenticação Base (Sarak Library)",

@@ -19,6 +19,8 @@ from ..database import get_db, engine, setup_identity_db
 from ..core.seed import seed_auth_identity
 from ..core.interaction_service import InteractionService
 from .limiter import limiter
+import httpx
+from .oauth_client import get_oauth_client
 
 
 async def get_current_user(
@@ -135,6 +137,7 @@ class InteractionLog(BaseModel):
     action: str
     payload: Optional[dict] = None
 
+
 class PasswordResetRequest(BaseModel):
     email: str
     system: str
@@ -142,10 +145,6 @@ class PasswordResetRequest(BaseModel):
 class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str
-    system: str
-
-class OAuthCallbackData(BaseModel):
-    code: str
     system: str
 
 # --- MFA Schemas (v7.7) ---
@@ -509,6 +508,34 @@ async def mfa_enable(
         logger.warning(f" [MFA-Audit] Invalid MFA code attempt for user {local_user.user_id}.")
         raise HTTPException(status_code=400, detail="Invalid MFA code. Verification failed.")
 
+@router.post("/mfa/disable")
+async def mfa_disable(
+    data: MFAVerifyRequest, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Desativa o MFA permanentemente mediante validação de código."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    local_user = db.query(User).filter(User.user_id == current_user.user_id, User.system == current_user.system).first()
+    
+    if not local_user.mfa_enabled:
+        return {"status": "info", "message": "MFA is already disabled"}
+        
+    if auth_service.verify_mfa_code(local_user, data.code):
+        local_user.mfa_enabled = False
+        local_user.mfa_secret = None # Limpamos o segredo por segurança
+        db.commit()
+        
+        InteractionService.log_security_event(db, local_user.user_id, local_user.system, "MFA_DISABLED")
+        logger.info(f" [MFA-Audit] MFA disabled for user {local_user.user_id}.")
+        
+        return {"status": "success", "message": "MFA disabled successfully"}
+    else:
+        logger.warning(f" [MFA-Audit] Failed disable attempt for user {local_user.user_id}. Invalid code.")
+        raise HTTPException(status_code=400, detail="Invalid MFA code. Verification failed.")
+
 @router.post("/login/mfa", response_model=TokenResponse)
 @limiter.limit("5/minute")
 def login_mfa(request: Request, data: MFALoginRequest, db: Session = Depends(get_db)):
@@ -583,66 +610,136 @@ def confirm_reset(data: PasswordResetConfirm, db: Session = Depends(get_db)):
     
     return {"message": "Password updated successfully"}
 
-# --- OAuth Endpoints (v7.6) ---
+# --- OAuth Endpoints (v8.5 Sovereign SSO) ---
 
 @router.get("/oauth/{provider}/login")
-def oauth_login(provider: str, system: str):
-    """Retorna a URL de redirecionamento do provedor OAuth."""
-    # Exemplo simplificado para Google/GitHub
-    client_id = os.getenv(f"{provider.upper()}_CLIENT_ID")
-    if not client_id:
-        raise HTTPException(status_code=501, detail=f"OAuth Provider {provider} not configured")
-        
-    redirect_uri = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8000/api/auth/oauth/callback")
+async def oauth_login(provider: str, system: str):
+    """Gera a URL de autorização real para o provedor solicitado."""
+    client = get_oauth_client(provider)
     
-    if provider == "google":
-        url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=email%20profile&state={system}"
-    elif provider == "github":
-        url = f"https://github.com/login/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&state={system}&scope=user:email"
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported provider")
-        
-    return {"url": url}
-
-@router.post("/oauth/{provider}/callback")
-async def oauth_callback(provider: str, data: OAuthCallbackData, db: Session = Depends(get_db)):
-    """Processa o callback do provedor, realiza o login e retorna o token Sarak."""
-    # NOTA: Em produção, aqui faríamos a troca do 'code' pelo 'access_token' do provedor.
-    # Simulando a resposta do provedor para fins de arquitetura:
-    logger.info(f" [OAuth] Processing callback for {provider} (Code: {data.code[:5]}...)")
+    # Montagem dinâmica da Redirect URI baseada no Gateway ou Env
+    base_url = os.getenv("SARAK_API_GATEWAY", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{base_url}/api/auth/oauth/{provider}/callback"
     
-    # Mock de dados do provedor (Substituir por chamada real httpx/requests)
-    mock_email = f"{provider}_user@example.com"
-    mock_id = f"oauth_{provider}_12345"
-    mock_name = f"{provider.capitalize()} User"
+    # Google e GitHub possuem escopos diferentes
+    scopes = ["email", "profile"] if provider == "google" else ["user:email"]
     
-    user = auth_service.process_oauth_user(
-        db, 
-        provider=provider,
-        oauth_id=mock_id,
-        email=mock_email,
-        username=mock_name,
-        system=data.system
+    authorization_url = await client.get_authorization_url(
+        redirect_uri,
+        state=system, # Transporta o contexto do sistema para o qual o login é destinado
+        scope=scopes
     )
     
-    # Gerar token Sarak
-    access_token = auth_service.create_access_token(data={"sub": str(user.user_id), "system": data.system})
-    refresh_token = auth_service.create_refresh_token(data={"sub": str(user.user_id), "system": data.system})
+    logger.info(f" [OAuth] Generated redirect URL for {provider} (System: {system})")
+    return {"url": authorization_url}
+
+@router.get("/oauth/{provider}/callback")
+async def oauth_callback(
+    provider: str, 
+    code: str, 
+    state: str, 
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    """
+    Processa o callback real do OAuth.
+    Troca o 'code' pelo token e busca o perfil do usuário.
+    """
+    client = get_oauth_client(provider)
+    base_url = os.getenv("SARAK_API_GATEWAY", "http://localhost:8000").rstrip("/")
+    redirect_uri = f"{base_url}/api/auth/oauth/{provider}/callback"
     
-    # Log de segurança
-    InteractionService.log_security_event(db, user.user_id, data.system, "OAUTH_LOGIN", {"provider": provider})
-    
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "user": {
-            "user_id": str(user.user_id),
-            "username": user.username,
-            "email": user.email,
-            "system": user.system
+    try:
+        # 1. Troca do Code pelo Access Token do Provedor
+        token_data = await client.get_access_token(code, redirect_uri)
+        access_token = token_data.get("access_token")
+        
+        if not access_token:
+            raise HTTPException(status_code=400, detail="Failed to retrieve access token from provider")
+
+        # 2. Busca do Perfil Real (Sovereign Data Extraction)
+        email, name, oauth_id = None, None, None
+        
+        async with httpx.AsyncClient() as h_client:
+            if provider == "google":
+                resp = await h_client.get(
+                    "https://www.googleapis.com/oauth2/v1/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"}
+                )
+                profile = resp.json()
+                email = profile.get("email")
+                name = profile.get("name", email.split("@")[0] if email else "Google User")
+                oauth_id = profile.get("id")
+                
+            elif provider == "github":
+                resp = await h_client.get(
+                    "https://api.github.com/user",
+                    headers={"Authorization": f"Bearer {access_token}"}
+                )
+                profile = resp.json()
+                oauth_id = str(profile.get("id"))
+                name = profile.get("name") or profile.get("login")
+                
+                # GitHub pode esconder o e-mail; buscamos via API de e-mails se necessário
+                email = profile.get("email")
+                if not email:
+                    email_resp = await h_client.get(
+                        "https://api.github.com/user/emails",
+                        headers={"Authorization": f"Bearer {access_token}"}
+                    )
+                    emails = email_resp.json()
+                    # Filtra o e-mail primário e verificado
+                    primary_email = next((e["email"] for e in emails if e.get("primary")), None)
+                    email = primary_email or emails[0]["email"]
+
+        if not email or not oauth_id:
+            raise HTTPException(status_code=400, detail="Incomplete profile data from provider")
+
+        # 3. Vinculação de Usuário no Core Sarak
+        # O 'state' recebido do OAuth é o nosso identificador de 'system'
+        user = auth_service.process_oauth_user(
+            db,
+            provider=provider,
+            oauth_id=oauth_id,
+            email=email,
+            username=name,
+            system=state
+        )
+        
+        # 4. Emissão de Tokens Sarak (Access & Refresh)
+        user_id_str = str(user.user_id)
+        sarak_access = auth_service.create_access_token(data={"sub": user_id_str, "system": state})
+        sarak_refresh = auth_service.create_refresh_token(data={"sub": user_id_str, "system": state})
+        
+        # 5. Registro de Sessão
+        auth_service.create_session(
+            db,
+            user_id=user_id_str,
+            system=state,
+            refresh_token=sarak_refresh,
+            user_agent=request.headers.get("user-agent") if request else "OAuth-Flow",
+            ip=request.client.host if request else "0.0.0.0"
+        )
+        
+        # Log de Segurança
+        InteractionService.log_security_event(db, user.user_id, state, "OAUTH_LOGIN_SUCCESS", {"provider": provider})
+        logger.info(f" [OAuth] Sovereign Login successful: {email} via {provider} in system {state}")
+        
+        return {
+            "access_token": sarak_access,
+            "refresh_token": sarak_refresh,
+            "token_type": "bearer",
+            "user": {
+                "user_id": user_id_str,
+                "username": user.username,
+                "email": user.email,
+                "system": user.system
+            }
         }
-    }
+
+    except Exception as e:
+        logger.error(f" [OAuth-Error] Critical failure in {provider} callback: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
 
 # --- Account Management Endpoints (v8.0) ---
 

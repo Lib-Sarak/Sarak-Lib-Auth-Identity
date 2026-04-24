@@ -24,6 +24,7 @@ export const AuthModuleManifest = {
       "permissions": "/permissions",
       "mfa_setup": "/mfa/setup",
       "mfa_enable": "/mfa/enable",
+      "mfa_disable": "/mfa/disable",
       "mfa_verify": "/login/mfa",
       "mfa_orch": "/",
       "change_password": "/change-password",

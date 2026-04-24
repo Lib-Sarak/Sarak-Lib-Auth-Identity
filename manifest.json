@@ -20,10 +20,13 @@
       "permissions": "/permissions",
       "mfa_setup": "/mfa/setup",
       "mfa_enable": "/mfa/enable",
+      "mfa_disable": "/mfa/disable",
       "mfa_verify": "/login/mfa",
       "mfa_orch": "/",
       "change_password": "/change-password",
-      "preferences": "/preferences"
+      "preferences": "/preferences",
+      "oauth_login": "/oauth/{provider}/login",
+      "oauth_callback": "/oauth/{provider}/callback"
     }
   },
   "capabilities": {
@@ -39,6 +42,17 @@
           "setup": "v1.mfa_setup",
           "enable": "v1.mfa_enable",
           "verify": "v1.mfa_verify"
+        }
+      },
+      "oauth": {
+        "enabled": true,
+        "providers": [
+          { "id": "google", "label": "Google", "icon": "Google" },
+          { "id": "github", "label": "GitHub", "icon": "Github" }
+        ],
+        "endpoints": {
+          "login": "v1.oauth_login",
+          "callback": "v1.oauth_callback"
         }
       }
     }
