@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
-import { api, authApi } from '../api/auth-api';
-import { UserProfile, AuthContextType } from '../types/auth';
-import { AuthIdentityEngine } from './AuthIdentityEngine';
+import { authApi } from '../api/auth-client';
+import { AuthContextType } from '../types/auth';
+import { UserProfile } from '../types/models/user';
+import { AuthFlowService } from '../services/auth/AuthFlowService';
+import { InteractionService } from '../services/audit/InteractionService';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -22,7 +24,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = useCallback(async () => {
         const refreshToken = localStorage.getItem('sarak_refresh_token');
         if (refreshToken) {
-            await AuthIdentityEngine.logout(refreshToken);
+            await AuthFlowService.logout(refreshToken);
         }
         setToken(null);
         setUser(null);
@@ -35,7 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const login = async (identification: string, password?: string) => {
         setLoading(true);
         try {
-            const result = await AuthIdentityEngine.login(identification, password);
+            const result = await AuthFlowService.login(identification, password);
             
             if (result.success) {
                 setToken(result.token);
@@ -45,7 +47,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 localStorage.setItem('sarak_user', JSON.stringify(result.user));
                 
                 // Log interaction
-                AuthIdentityEngine.logInteraction('auth', 'login_success', { username: identification });
+                InteractionService.logInteraction('auth', 'login_success', { username: identification });
                 
                 setLoading(false);
                 return { success: true, token: result.token, user: result.user };
@@ -60,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const registerAPI = async (email: string, password: string) => {
-        return await AuthIdentityEngine.register(email, password);
+        return await AuthFlowService.register(email, password);
     };
 
     // Auto-refresh mechanism
@@ -68,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const storedRefreshToken = localStorage.getItem('sarak_refresh_token');
         if (!storedRefreshToken) return false;
 
-        const result = await AuthIdentityEngine.refresh(storedRefreshToken);
+        const result = await AuthFlowService.refresh(storedRefreshToken);
         if (result.success) {
             setToken(result.token);
             localStorage.setItem('sarak_token', result.token);
@@ -98,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         logout,
         refreshToken,
-        logInteraction: AuthIdentityEngine.logInteraction,
+        logInteraction: InteractionService.logInteraction,
         authApi
     }), [user, token, loading, isHydrated, logout, refreshToken]);
 

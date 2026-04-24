@@ -1,12 +1,5 @@
 import { ReactNode } from 'react';
-
-export interface UserProfile {
-    id: string | number;
-    username: string;
-    email?: string;
-    full_name?: string;
-    [key: string]: any;
-}
+import { UserProfile } from './models/user';
 
 export interface AuthContextType {
     user: UserProfile | null;
@@ -17,6 +10,7 @@ export interface AuthContextType {
     login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; token?: string; user?: any }>;
     logout: () => void;
     authApi: any; 
+    logInteraction: (moduleId: string, action: string, payload?: any) => Promise<void>;
 }
 
 export interface AuthProviderProps {

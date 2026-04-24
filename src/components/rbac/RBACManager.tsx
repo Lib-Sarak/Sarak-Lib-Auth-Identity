@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../services/AuthContext';
+import { useAuth } from '../../providers/AuthProvider';
+import { GovernanceService } from '../../services/rbac/GovernanceService';
+import { Role, Permission } from '../../types/models/rbac';
 import { 
     Shield, 
     ChevronRight, 
@@ -12,19 +14,6 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-interface Role {
-    role_id: string;
-    name: string;
-    description: string;
-    permissions: Permission[];
-}
-
-interface Permission {
-    permission_id: string;
-    name: string;
-    description: string;
-}
 
 export const RBACManager: React.FC = () => {
     const { authApi } = useAuth();
@@ -45,16 +34,20 @@ export const RBACManager: React.FC = () => {
     const loadData = async () => {
         setLoading(true);
         try {
+            // Chamadas via GovernanceService (Granularidade v7.0)
             const [rolesRes, permsRes] = await Promise.all([
-                authApi.get('/roles'),
-                authApi.get('/permissions')
+                GovernanceService.getRoles(),
+                GovernanceService.getPermissions()
             ]);
-            setRoles(rolesRes.data);
-            setAllPermissions(permsRes.data);
-            if (rolesRes.data.length > 0) {
+            
+            setRoles(rolesRes.data || []);
+            setAllPermissions(permsRes.data || []);
+            
+            if (rolesRes.data && rolesRes.data.length > 0) {
                 handleSelectRole(rolesRes.data[0]);
             }
         } catch (err) {
+            console.error('[RBAC] Erro ao carregar:', err);
             setMessage({ type: 'error', text: 'Erro ao carregar dados de segurança.' });
         } finally {
             setLoading(false);
@@ -63,16 +56,15 @@ export const RBACManager: React.FC = () => {
 
     const handleSelectRole = (role: Role) => {
         setSelectedRoleId(role.role_id);
+        // Garantir que mapeamos IDs de permissão
         setCurrentPermissions((role.permissions || []).map(p => p.permission_id));
         setMessage(null);
     };
 
     const togglePermission = (permId: string) => {
-        // Bloqueio de segurança: MASTER não pode ter permissões removidas via UI para evitar auto-bloqueio
         const selectedRole = roles.find(r => r.role_id === selectedRoleId);
         if (selectedRole?.name === 'MASTER') return;
 
-        // Correção da lógica de toggle
         setCurrentPermissions(prev => 
             prev.includes(permId) 
                 ? prev.filter(id => id !== permId) 
@@ -83,12 +75,19 @@ export const RBACManager: React.FC = () => {
     const saveChanges = async () => {
         if (!selectedRoleId) return;
         setSaving(true);
+        setMessage(null);
+
         try {
-            await authApi.post(`/roles/${selectedRoleId}/permissions`, currentPermissions);
+            await GovernanceService.updateRolePermissions(selectedRoleId, currentPermissions);
+            
             setMessage({ type: 'success', text: 'Matriz de acesso atualizada com sucesso!' });
-            // Recarregar para garantir sincronia
-            const rolesRes = await authApi.get('/roles');
-            setRoles(rolesRes.data);
+            
+            // Recarregar papéis para atualizar estado global
+            const rolesRes = await GovernanceService.getRoles();
+            setRoles(rolesRes.data || []);
+            
+            // Timeout para limpar mensagem
+            setTimeout(() => setMessage(null), 3000);
         } catch (err) {
             setMessage({ type: 'error', text: 'Erro ao salvar alterações.' });
         } finally {
@@ -132,7 +131,7 @@ export const RBACManager: React.FC = () => {
                 ))}
             </div>
 
-            {/* Matriz de Permissões */}
+            {/* Grid de Permissões */}
             <div className="flex-1 space-y-6">
                 <AnimatePresence mode="wait">
                     {activeRole && (
@@ -143,7 +142,7 @@ export const RBACManager: React.FC = () => {
                             exit={{ opacity: 0, y: -10 }}
                             className="space-y-6"
                         >
-                            {/* Header do Papel Selecionado */}
+                            {/* Header do Painel */}
                             <div className="p-6 rounded-2xl bg-gradient-to-r from-theme-card to-transparent border border-theme-border flex flex-col md:flex-row md:items-center justify-between gap-4">
                                 <div>
                                     <h2 className="text-2xl font-black text-theme-title uppercase tracking-tighter flex items-center gap-2">
@@ -161,17 +160,22 @@ export const RBACManager: React.FC = () => {
                                 </button>
                             </div>
 
-                            {/* Alertas e Mensagens */}
+                            {/* Feedback de Status */}
                             {message && (
-                                <div className={cn(
-                                    "p-4 rounded-xl border flex items-center gap-3 text-sm font-bold",
-                                    message.type === 'success' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border-red-500/20 text-red-400"
-                                )}>
+                                <motion.div 
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    className={cn(
+                                        "p-4 rounded-xl border flex items-center gap-3 text-sm font-bold",
+                                        message.type === 'success' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border-red-500/20 text-red-400"
+                                    )}
+                                >
                                     {message.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                                     {message.text}
-                                </div>
+                                </motion.div>
                             )}
 
+                            {/* Alerta MASTER */}
                             {activeRole.name === 'MASTER' && (
                                 <div className="p-4 rounded-xl bg-theme-primary/5 border border-theme-primary/10 flex items-center gap-3 text-xs text-theme-primary/80 font-medium">
                                     <Info className="w-4 h-4" />
@@ -179,7 +183,7 @@ export const RBACManager: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Grid de Permissões (Explorador Interativo) */}
+                            {/* Matrix de Capacidades */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {allPermissions.map(perm => {
                                     const isSelected = currentPermissions.includes(perm.permission_id);
@@ -191,7 +195,7 @@ export const RBACManager: React.FC = () => {
                                             onClick={() => !isImmutable && togglePermission(perm.permission_id)}
                                             disabled={isImmutable}
                                             className={cn(
-                                                "flex items-start gap-4 p-4 rounded-xl border transition-all text-left",
+                                                "flex items-start gap-4 p-4 rounded-xl border transition-all text-left group",
                                                 isSelected 
                                                     ? "bg-theme-primary/5 border-theme-primary/30" 
                                                     : "bg-theme-card/10 border-theme-border/10 hover:border-theme-primary/20"
@@ -200,7 +204,7 @@ export const RBACManager: React.FC = () => {
                                             <div className="mt-1">
                                                 {isSelected 
                                                     ? <CheckCircle2 className="w-5 h-5 text-theme-primary" /> 
-                                                    : <Circle className="w-5 h-5 text-theme-muted/30" />
+                                                    : <Circle className="w-5 h-5 text-theme-muted/30 group-hover:text-theme-muted/50" />
                                                 }
                                             </div>
                                             <div>
@@ -223,7 +227,6 @@ export const RBACManager: React.FC = () => {
     );
 };
 
-// Helper function for tailwind classes (can be imported if available)
 function cn(...inputs: any[]) {
     return inputs.filter(Boolean).join(' ');
 }

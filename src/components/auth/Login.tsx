@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../services/AuthContext';
+import { useAuth } from '../../providers/AuthProvider';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Cpu,
@@ -110,8 +110,6 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                     >
                         {branding?.name}
                     </motion.h1>
-
-
 
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -270,5 +268,3 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
         </div>
     );
 };
-
-// Removida exportação default para consistência do ecossistema Sarak
