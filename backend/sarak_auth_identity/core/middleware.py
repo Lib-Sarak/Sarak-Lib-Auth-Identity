@@ -20,6 +20,7 @@ async def identity_middleware(request: Request, call_next):
     EXEMPT_SUFFIXES = [
         "/login", 
         "/login/mfa",
+        "/callback",
         "/register", 
         "/status",
         "/refresh",

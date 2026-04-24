@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 import json
 import os
 from sqlalchemy.orm import Session, sessionmaker
@@ -619,7 +619,7 @@ async def oauth_login(provider: str, system: str):
     
     # Montagem dinâmica da Redirect URI baseada no Gateway ou Env
     base_url = os.getenv("SARAK_API_GATEWAY", "http://localhost:8000").rstrip("/")
-    redirect_uri = f"{base_url}/api/auth/oauth/{provider}/callback"
+    redirect_uri = f"{base_url}/api/v1/oauth/{provider}/callback"
     
     # Google e GitHub possuem escopos diferentes
     scopes = ["email", "profile"] if provider == "google" else ["user:email"]
@@ -647,7 +647,7 @@ async def oauth_callback(
     """
     client = get_oauth_client(provider)
     base_url = os.getenv("SARAK_API_GATEWAY", "http://localhost:8000").rstrip("/")
-    redirect_uri = f"{base_url}/api/auth/oauth/{provider}/callback"
+    redirect_uri = f"{base_url}/api/v1/oauth/{provider}/callback"
     
     try:
         # 1. Troca do Code pelo Access Token do Provedor
@@ -725,17 +725,12 @@ async def oauth_callback(
         InteractionService.log_security_event(db, user.user_id, state, "OAUTH_LOGIN_SUCCESS", {"provider": provider})
         logger.info(f" [OAuth] Sovereign Login successful: {email} via {provider} in system {state}")
         
-        return {
-            "access_token": sarak_access,
-            "refresh_token": sarak_refresh,
-            "token_type": "bearer",
-            "user": {
-                "user_id": user_id_str,
-                "username": user.username,
-                "email": user.email,
-                "system": user.system
-            }
-        }
+        # 6. Redirecionamento Soberano para o Frontend
+        frontend_url = os.getenv("SARAK_FRONTEND_URL", "http://localhost:5173").rstrip("/")
+        # Passamos os tokens via fragmento ou query (Fragmento é mais seguro para tokens)
+        target_url = f"{frontend_url}/#token={sarak_access}&refresh={sarak_refresh}"
+        
+        return RedirectResponse(url=target_url)
 
     except Exception as e:
         logger.error(f" [OAuth-Error] Critical failure in {provider} callback: {str(e)}")

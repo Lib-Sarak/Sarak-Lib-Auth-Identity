@@ -46,13 +46,18 @@
       },
       "oauth": {
         "enabled": true,
+        "component": "SocialButton",
+        "variant": "sovereign",
         "providers": [
-          { "id": "google", "label": "Google", "icon": "Google" },
-          { "id": "github", "label": "GitHub", "icon": "Github" }
+          { "id": "google", "label": "Google", "icon": "Google", "variant": "sovereign" },
+          { "id": "github", "label": "GitHub", "icon": "Github", "variant": "glass" }
         ],
         "endpoints": {
           "login": "v1.oauth_login",
           "callback": "v1.oauth_callback"
+        },
+        "events": {
+          "onClick": "auth:oauth_init"
         }
       }
     }

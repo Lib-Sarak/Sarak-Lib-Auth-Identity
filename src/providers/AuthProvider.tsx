@@ -108,6 +108,10 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
         return await AuthFlowService.register(email, password, system);
     };
 
+    const getOAuthLoginUrl = async (provider: string) => {
+        return await AuthFlowService.getOAuthLoginUrl(provider, system);
+    };
+
     // Auto-refresh mechanism
     const refreshToken = useCallback(async () => {
         const storedRefreshToken = localStorage.getItem(`${system}_refresh_token`);
@@ -126,12 +130,56 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
 
     // Hydration
     useEffect(() => {
-        const storedUser = localStorage.getItem(`${system}_user`);
-        if (storedUser && storedUser !== 'undefined') {
-            setUser(JSON.parse(storedUser));
-        }
-        setIsHydrated(true);
-        setLoading(false);
+        const hydrate = async () => {
+            // 1. Capture OAuth Tokens from URL Fragment (#token=...&refresh=...)
+            const hash = window.location.hash;
+            let currentToken = token;
+
+            if (hash.includes('token=')) {
+                const params = new URLSearchParams(hash.substring(1));
+                const urlToken = params.get('token');
+                const urlRefresh = params.get('refresh');
+
+                if (urlToken && urlRefresh) {
+                    currentToken = urlToken;
+                    setToken(urlToken);
+                    localStorage.setItem(`${system}_token`, urlToken);
+                    localStorage.setItem(`${system}_refresh_token`, urlRefresh);
+                    
+                    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                    InteractionService.logInteraction(system, 'auth', 'oauth_capture_success', { method: 'hash' });
+                }
+            }
+
+            // 2. Fetch/Refresh User Profile if we have a token
+            if (currentToken) {
+                try {
+                    // We use authApi directly to get the current profile
+                    const response = await authApi.get('/me');
+                    const profile = response.data;
+                    setUser(profile);
+                    localStorage.setItem(`${system}_user`, JSON.stringify(profile));
+                } catch (error) {
+                    console.error("Failed to fetch user profile", error);
+                    // If token is invalid, we might want to clear it, 
+                    // but for now let's just use the stored user as fallback
+                    const storedUser = localStorage.getItem(`${system}_user`);
+                    if (storedUser && storedUser !== 'undefined') {
+                        setUser(JSON.parse(storedUser));
+                    }
+                }
+            } else {
+                const storedUser = localStorage.getItem(`${system}_user`);
+                if (storedUser && storedUser !== 'undefined') {
+                    setUser(JSON.parse(storedUser));
+                }
+            }
+            
+            setIsHydrated(true);
+            setLoading(false);
+        };
+
+        hydrate();
     }, [system]);
 
     const value = useMemo(() => ({
@@ -146,9 +194,10 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
         enableMFA,
         logout,
         refreshToken,
+        getOAuthLoginUrl,
         logInteraction: InteractionService.logInteraction,
         authApi
-    }), [user, token, loading, isHydrated, logout, refreshToken, verifyMFA, setupMFA, enableMFA]);
+    }), [user, token, loading, isHydrated, logout, refreshToken, verifyMFA, setupMFA, enableMFA, getOAuthLoginUrl]);
 
     return (
         <AuthContext.Provider value={value}>

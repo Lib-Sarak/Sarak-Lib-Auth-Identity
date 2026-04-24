@@ -14,6 +14,7 @@ export interface AuthContextType {
     logout: () => void;
     authApi: any; 
     logInteraction: (moduleId: string, action: string, payload?: any) => Promise<void>;
+    getOAuthLoginUrl: (provider: string) => Promise<{ success: boolean; url?: string; error?: string }>;
 }
 
 export interface AuthProviderProps {

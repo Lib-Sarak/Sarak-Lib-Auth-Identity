@@ -28,7 +28,43 @@ export const AuthModuleManifest = {
       "mfa_verify": "/login/mfa",
       "mfa_orch": "/",
       "change_password": "/change-password",
-      "preferences": "/preferences"
+      "preferences": "/preferences",
+      "oauth_login": "/oauth/{provider}/login",
+      "oauth_callback": "/oauth/{provider}/callback"
+    }
+  },
+  "capabilities": {
+    "security": {
+      "rateLimit": {
+        "handleStatus": 429,
+        "message": "Muitas tentativas. Por segurança, aguarde 1 minuto antes de tentar novamente."
+      },
+      "mfa": {
+        "type": "TOTP",
+        "challengeStatus": "MFA_REQUIRED",
+        "endpoints": {
+          "setup": "v1.mfa_setup",
+          "enable": "v1.mfa_enable",
+          "verify": "v1.mfa_verify"
+        }
+      },
+      "oauth": {
+        "enabled": true,
+        "display": "full",
+        "component": "SocialButton",
+        "variant": "sovereign",
+        "providers": [
+          { "id": "google", "label": "Google", "icon": "Google", "variant": "sovereign" },
+          { "id": "github", "label": "GitHub", "icon": "Github", "variant": "glass" }
+        ],
+        "endpoints": {
+          "login": "v1.oauth_login",
+          "callback": "v1.oauth_callback"
+        },
+        "events": {
+          "onClick": "auth:oauth_init"
+        }
+      }
     }
   },
   "visualContracts": [

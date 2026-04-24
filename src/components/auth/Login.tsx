@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { SocialButton } from '@sarak/lib-ui-core';
+import { AuthModuleManifest } from "../../index";
 
 interface Branding {
     name: string;
@@ -38,7 +40,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
     const [mfaToken, setMfaToken] = useState<string | null>(null);
     const [mfaCode, setMfaCode] = useState('');
 
-    const { login: loginAPI, register: registerAPI, verifyMFA } = useAuth();
+    const { login: loginAPI, register: registerAPI, verifyMFA, getOAuthLoginUrl } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -301,6 +303,41 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
                             )}
                         </button>
                     </form>
+
+                    {/* Social Login Section (Manifest Driven) */}
+                    {AuthModuleManifest.capabilities?.security?.oauth?.enabled && (
+                        <div className="mt-8 space-y-6">
+                            <div className="relative flex items-center justify-center">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-white/5"></div>
+                                </div>
+                                <span className="relative px-4 bg-theme-body text-3xs font-black text-theme-muted uppercase tracking-[0.3em]">Ou continue com</span>
+                            </div>
+
+                            <div className={cn(
+                                "grid gap-3",
+                                AuthModuleManifest.capabilities.security.oauth.display === 'compact' ? "grid-cols-4" : "grid-cols-1"
+                            )}>
+                                {AuthModuleManifest.capabilities.security.oauth.providers.map((p: any) => (
+                                    <SocialButton 
+                                        key={p.id} 
+                                        provider={p.id} 
+                                        variant={p.variant} 
+                                        hideLabel={AuthModuleManifest.capabilities.security.oauth.display === 'compact'}
+                                        onClick={async (provider) => {
+                                            window.dispatchEvent(new CustomEvent('auth:oauth_init', { detail: { provider } }));
+                                            const result = await getOAuthLoginUrl(provider);
+                                            if (result.success && result.url) {
+                                                window.location.href = result.url;
+                                            } else {
+                                                setError(result.error || 'Falha ao iniciar login social.');
+                                            }
+                                        }} 
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="mt-8 space-y-3">
                         {!isRegistering && (
