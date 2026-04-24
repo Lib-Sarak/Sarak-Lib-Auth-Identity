@@ -15,6 +15,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import func
 import os
+import secrets
+from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +133,10 @@ def is_session_valid(db: Session, user_id: str, system: str) -> bool:
 
 # --- RBAC Utilities ---
 
+    return False
+
 def has_permission(user: User, permission_name: str) -> bool:
+    """Verifica permissÃµes granulares (v5.5)."""
     if user.is_superuser:
         return True
     
@@ -140,6 +145,18 @@ def has_permission(user: User, permission_name: str) -> bool:
             if perm.name == permission_name:
                 return True
     return False
+
+def get_user_max_level(user: User) -> int:
+    """Calcula o nÃ­vel mÃ¡ximo de acesso do usuÃ¡rio baseado em suas roles (v7.6)."""
+    if user.is_superuser:
+        return 100
+    if not user.roles:
+        return 10
+    return max([role.level for role in user.roles])
+
+def can_access_level(user: User, required_level: int) -> bool:
+    """Verifica se o usuÃ¡rio possui nÃ­vel igual ou superior ao exigido."""
+    return get_user_max_level(user) >= required_level
 
 def permission_required(permission_name: str):
     """FastAPI Dependency for granular RBAC"""
@@ -291,3 +308,101 @@ def assign_roles_to_user(db: Session, user_id: str, role_names: List[str]):
     db.commit()
     db.refresh(user)
     return user
+
+# --- Password Recovery (v7.6) ---
+
+def request_password_reset(db: Session, email: str, system: str) -> Optional[str]:
+    """Gera um token de reset, salva no banco e retorna para o chamador (v7.6)."""
+    from .models import PasswordResetToken
+    user = get_user_by_email(db, email, system)
+    if not user:
+        return None
+        
+    # Limpar tokens antigos (Audit/Higiene)
+    db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user.user_id).delete()
+    
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    
+    expires = datetime.utcnow() + timedelta(hours=1)
+    
+    reset_token = PasswordResetToken(
+        user_id=user.user_id,
+        system=system,
+        token_hash=token_hash,
+        expires_at=expires
+    )
+    db.add(reset_token)
+    db.commit()
+    
+    return token
+
+def confirm_password_reset(db: Session, token: str, new_password: str, system: str) -> bool:
+    """Valida o token e atualiza a senha do usuÃ¡rio correspondente."""
+    from .models import PasswordResetToken
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    
+    record = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token_hash == token_hash,
+        PasswordResetToken.system == system,
+        PasswordResetToken.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not record:
+        return False
+        
+    user = get_user_by_id(db, record.user_id)
+    if user:
+        user.password = get_password_hash(new_password)
+        db.delete(record)
+        db.commit()
+        return True
+    return False
+
+# --- OAuth Processing (v7.6) ---
+
+def process_oauth_user(db: Session, provider: str, oauth_id: str, email: str, username: str, system: str, avatar_url: str = None) -> User:
+    """Realiza o Upsert do usuÃ¡rio OAuth e vincula ao sistema atual."""
+    user = db.query(User).filter(User.email == email, User.system == system).first()
+    
+    if not user:
+        user = User(
+            email=email,
+            username=username,
+            system=system,
+            oauth_provider=provider,
+            oauth_id=oauth_id,
+            avatar_url=avatar_url,
+            is_active=True
+        )
+        db.add(user)
+    else:
+        # Atualiza vÃ­nculo OAuth se necessÃ¡rio
+        user.oauth_provider = provider
+        user.oauth_id = oauth_id
+        if avatar_url:
+            user.avatar_url = avatar_url
+            
+    db.commit()
+    db.refresh(user)
+    return user
+
+# --- Governance & RBAC Levels (v7.6) ---
+
+def can_access_level(user: User, required_level: int) -> bool:
+    """
+    Verifica se o usuÃ¡rio possui nÃ­vel de poder suficiente (Hierarquia Sarak).
+    MASTER (100) > ADMIN (50) > USER (10)
+    """
+    if not user or not user.is_active:
+        return False
+        
+    if user.is_superuser:
+        return True
+        
+    # ObtÃ©m o maior nÃ­vel entre todas as roles do usuÃ¡rio
+    max_level = 0
+    if user.roles:
+        max_level = max([role.level for role in user.roles])
+        
+    return max_level >= required_level

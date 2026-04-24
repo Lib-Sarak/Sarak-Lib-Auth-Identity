@@ -83,6 +83,17 @@ def setup_identity_db(ext_engine=None):
                     conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.{table} ADD PRIMARY KEY ({pk_col}, system)"))
             
             conn.commit()
+
+            # 4. Hierarquia e OAuth (v7.6 Migration)
+            # Garantir coluna level em roles
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.roles ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 10"))
+            
+            # Garantir colunas OAuth em users
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS oauth_provider VARCHAR(50)"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS oauth_id VARCHAR(255)"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS avatar_url TEXT"))
+            
+            conn.commit()
         
         logger.info(f" [Auth DB] Sovereignty: Schema '{SCHEMA_NAME}' and multi-tenant columns verified.")
     except Exception as e:

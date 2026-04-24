@@ -50,6 +50,7 @@ class Role(Base):
     role_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(50), nullable=False, index=True)
     system = Column(String(50), nullable=False, index=True)
+    level = Column(Integer, default=10, nullable=False) # 100: MASTER, 50: ADMIN, 10: USER
     description = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -73,6 +74,12 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
     must_change_password = Column(Boolean, default=False)
+    
+    # OAuth Fields (v7.6)
+    oauth_provider = Column(String(50), nullable=True)
+    oauth_id = Column(String(255), nullable=True)
+    avatar_url = Column(Text, nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -110,4 +117,16 @@ class UserInteraction(Base):
     module_id = Column(String(100), nullable=False, index=True)
     action = Column(String(100), nullable=False)
     payload = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class PasswordResetToken(Base):
+    """Secure tokens for password recovery (1h expiration)"""
+    __tablename__ = "password_reset_tokens"
+    __table_args__ = {'schema': 'sarak_auth'}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("sarak_auth.users.user_id", ondelete="CASCADE"), nullable=False)
+    system = Column(String(50), nullable=False, index=True)
+    token_hash = Column(String(255), nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

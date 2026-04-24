@@ -81,5 +81,46 @@ export const AuthFlowService = {
                     : (error.response?.data?.detail || 'Erro ao criar conta.')
             };
         }
+    },
+
+    requestPasswordReset: async (email: string, system: string) => {
+        try {
+            await (authApi as any).post('/password-reset/request', { email, system });
+            return { success: true };
+        } catch (error: any) {
+            return { success: false, error: formatError(error) };
+        }
+    },
+
+    confirmPasswordReset: async (token: string, newPassword: string, system: string) => {
+        try {
+            await (authApi as any).post('/password-reset/confirm', { token, new_password: newPassword, system });
+            return { success: true };
+        } catch (error: any) {
+            return { success: false, error: formatError(error) };
+        }
+    },
+
+    getOAuthLoginUrl: async (provider: string, system: string) => {
+        try {
+            const response = await (authApi as any).get(`/oauth/${provider}/login`, { params: { system } });
+            return { success: true, url: response.data.url };
+        } catch (error: any) {
+            return { success: false, error: formatError(error) };
+        }
+    },
+
+    processOAuthCallback: async (provider: string, code: string, system: string) => {
+        try {
+            const response = await (authApi as any).post(`/oauth/${provider}/callback`, { code, system });
+            return { 
+                success: true, 
+                token: response.data.access_token,
+                refreshToken: response.data.refresh_token,
+                user: maskUserData(response.data.user)
+            };
+        } catch (error: any) {
+            return { success: false, error: formatError(error) };
+        }
     }
 };

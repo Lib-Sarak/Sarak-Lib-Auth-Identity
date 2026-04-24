@@ -1,11 +1,27 @@
 export interface UserProfile {
-    id: string | number;
+    user_id: string; // Uniformizando com o backend
     username: string;
-    email?: string;
-    full_name?: string;
+    email: string;
+    system: string;
     is_active?: boolean;
     is_superuser?: boolean;
     role_names?: string;
     permissions?: string[];
-    [key: string]: any;
+    
+    // OAuth Fields (v7.6)
+    oauth_provider?: string;
+    oauth_id?: string;
+    avatar_url?: string;
+    
+    // UI Metadata
+    last_login?: string;
+}
+
+export enum RoleLevel {
+    MASTER = 100,
+    ADMIN = 50,
+    EDITOR = 30,
+    LEITOR = 20,
+    USER = 10,
+    ANONYMOUS = 0
 }

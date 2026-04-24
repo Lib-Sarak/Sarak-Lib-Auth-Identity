@@ -43,6 +43,24 @@ export class StorageManager {
     }
 
     /**
+     * Persiste tokens de autenticação com isolamento (v7.6).
+     */
+    public saveAuthSession(token: string, refreshToken: string): void {
+        localStorage.setItem(`${this.system}_auth_token`, token);
+        localStorage.setItem(`${this.system}_refresh_token`, refreshToken);
+    }
+
+    public getAuthToken(): string | null {
+        return localStorage.getItem(`${this.system}_auth_token`);
+    }
+
+    public clearAuthSession(): void {
+        localStorage.removeItem(`${this.system}_auth_token`);
+        localStorage.removeItem(`${this.system}_refresh_token`);
+        localStorage.removeItem(`${this.system}_oauth_state`);
+    }
+
+    /**
      * Persiste logs de auditoria e sessões no PostgreSQL.
      * Ideal para: interações importantes, logs de segurança.
      */

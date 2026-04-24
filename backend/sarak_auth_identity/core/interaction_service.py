@@ -2,6 +2,7 @@ import os
 import logging
 from sqlalchemy.orm import Session
 from .models import UserInteraction
+from typing import Any
 from sarak_auth_identity.database import identity_context
 
 logger = logging.getLogger(__name__)
@@ -49,8 +50,27 @@ class InteractionService:
 
     @staticmethod
     def get_user_history(db: Session, user_id: str, limit: int = 50):
-        """Retrieves history from DB if mode is 'db'"""
+        """Retrieves history from DB if mode is 'db' (v6.8)"""
         from uuid import UUID
         return db.query(UserInteraction).filter(
             UserInteraction.user_id == (UUID(user_id) if isinstance(user_id, str) else user_id)
         ).order_by(UserInteraction.created_at.desc()).limit(limit).all()
+
+    @staticmethod
+    def log_security_event(db: Session, user_id: Any, system: str, action: str, payload: dict = None):
+        """Logs a security-specific event, bypassing the need for a global context (v7.6)."""
+        from uuid import UUID
+        try:
+            interaction = UserInteraction(
+                user_id=UUID(user_id) if isinstance(user_id, str) else user_id,
+                system=system,
+                module_id="auth:identity",
+                action=action,
+                payload=payload
+            )
+            db.add(interaction)
+            db.commit()
+            logger.info(f" [SECURITY] {action} logged for user {user_id}")
+        except Exception as e:
+            logger.error(f" [SECURITY] Failed to log event: {e}")
+            db.rollback()

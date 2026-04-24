@@ -129,6 +129,34 @@ class InteractionLog(BaseModel):
     action: str
     payload: Optional[dict] = None
 
+class PasswordResetRequest(BaseModel):
+    email: str
+    system: str
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+    system: str
+
+class OAuthCallbackData(BaseModel):
+    code: str
+    system: str
+
+# --- Security Dependencies ---
+
+class RoleChecker:
+    """Dependency to check minimum role level (v7.6)."""
+    def __init__(self, min_level: int):
+        self.min_level = min_level
+
+    def __call__(self, current_user: User = Depends(get_current_user)):
+        if not auth_service.can_access_level(current_user, self.min_level):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail=f"Access denied. Minimum level required: {self.min_level}"
+            )
+        return current_user
+
 # --- Endpoints ---
 
 @router.post("/roles/{role_id}/permissions")
@@ -376,3 +404,91 @@ def log_user_interaction(
         payload=data.payload
     )
     return {"status": "ok"}
+
+# --- Password Recovery Endpoints (v7.6) ---
+
+@router.post("/password-reset/request")
+def request_reset(data: PasswordResetRequest, db: Session = Depends(get_db)):
+    """Solicita um token de recuperação de senha."""
+    token = auth_service.request_password_reset(db, data.email, data.system)
+    if token:
+        # Auditoria
+        user = auth_service.get_user_by_email(db, data.email, data.system)
+        InteractionService.log_security_event(db, user.user_id, data.system, "PASSWORD_RESET_REQUESTED")
+        
+        # Em um sistema real, aqui dispararíamos o e-mail.
+        # Por enquanto retornamos o token para facilitar o desenvolvimento/teste.
+        return {"message": "Reset token generated successfully", "token": token}
+    
+    # Por segurança, não confirmamos se o e-mail existe
+    return {"message": "If the email exists, a reset link will be sent."}
+
+@router.post("/password-reset/confirm")
+def confirm_reset(data: PasswordResetConfirm, db: Session = Depends(get_db)):
+    """Valida o token e altera a senha."""
+    success = auth_service.confirm_password_reset(db, data.token, data.new_password, data.system)
+    if not success:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    return {"message": "Password updated successfully"}
+
+# --- OAuth Endpoints (v7.6) ---
+
+@router.get("/oauth/{provider}/login")
+def oauth_login(provider: str, system: str):
+    """Retorna a URL de redirecionamento do provedor OAuth."""
+    # Exemplo simplificado para Google/GitHub
+    client_id = os.getenv(f"{provider.upper()}_CLIENT_ID")
+    if not client_id:
+        raise HTTPException(status_code=501, detail=f"OAuth Provider {provider} not configured")
+        
+    redirect_uri = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8000/api/auth/oauth/callback")
+    
+    if provider == "google":
+        url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=email%20profile&state={system}"
+    elif provider == "github":
+        url = f"https://github.com/login/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&state={system}&scope=user:email"
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+        
+    return {"url": url}
+
+@router.post("/oauth/{provider}/callback")
+async def oauth_callback(provider: str, data: OAuthCallbackData, db: Session = Depends(get_db)):
+    """Processa o callback do provedor, realiza o login e retorna o token Sarak."""
+    # NOTA: Em produção, aqui faríamos a troca do 'code' pelo 'access_token' do provedor.
+    # Simulando a resposta do provedor para fins de arquitetura:
+    logger.info(f" [OAuth] Processing callback for {provider} (Code: {data.code[:5]}...)")
+    
+    # Mock de dados do provedor (Substituir por chamada real httpx/requests)
+    mock_email = f"{provider}_user@example.com"
+    mock_id = f"oauth_{provider}_12345"
+    mock_name = f"{provider.capitalize()} User"
+    
+    user = auth_service.process_oauth_user(
+        db, 
+        provider=provider,
+        oauth_id=mock_id,
+        email=mock_email,
+        username=mock_name,
+        system=data.system
+    )
+    
+    # Gerar token Sarak
+    access_token = auth_service.create_access_token(data={"sub": str(user.user_id), "system": data.system})
+    refresh_token = auth_service.create_refresh_token(data={"sub": str(user.user_id), "system": data.system})
+    
+    # Log de segurança
+    InteractionService.log_security_event(db, user.user_id, data.system, "OAUTH_LOGIN", {"provider": provider})
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "user_id": str(user.user_id),
+            "username": user.username,
+            "email": user.email,
+            "system": user.system
+        }
+    }
