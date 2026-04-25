@@ -330,6 +330,7 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(get_c
     
     # Log de Auditoria Global (Apenas terminal)
     all_users = db.query(User).all()
+    logger.info(f" [RBAC-Infra] Database URL: {engine.url.render_as_string(hide_password=True)}")
     logger.info(f" [RBAC-Global] Total users in DB: {len(all_users)} | Emails: {[u.email for u in all_users]}")
 
     query = db.query(User).filter(User.system == current_user.system).options(selectinload(User.roles))
