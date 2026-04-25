@@ -4,7 +4,7 @@
   "label": "Sovereign Identity",
   "icon": "ShieldCheck",
   "category": "Core Security",
-  "version": "6.8.0",
+  "version": "8.0.0",
   "priority": 0,
   "endpoints": {
     "v1": {
@@ -15,13 +15,10 @@
       "register": "/register",
       "me": "/me",
       "users": "/users",
+      "user_role": "/users/{user_id}/role",
       "interactions": "/interactions",
       "roles": "/roles",
       "permissions": "/permissions",
-      "mfa_setup": "/mfa/setup",
-      "mfa_enable": "/mfa/enable",
-      "mfa_disable": "/mfa/disable",
-      "mfa_verify": "/login/mfa",
       "mfa_orch": "/",
       "change_password": "/change-password",
       "preferences": "/preferences",
@@ -31,93 +28,99 @@
   },
   "capabilities": {
     "security": {
-      "rateLimit": {
-        "handleStatus": 429,
-        "message": "Muitas tentativas. Por segurança, aguarde 1 minuto antes de tentar novamente."
-      },
-      "mfa": {
-        "type": "TOTP",
-        "challengeStatus": "MFA_REQUIRED",
-        "endpoints": {
-          "setup": "v1.mfa_setup",
-          "enable": "v1.mfa_enable",
-          "verify": "v1.mfa_verify"
-        }
-      },
-      "oauth": {
-        "enabled": true,
-        "component": "SocialButton",
-        "variant": "sovereign",
-        "providers": [
-          { "id": "google", "label": "Google", "icon": "Google", "variant": "sovereign" },
-          { "id": "github", "label": "GitHub", "icon": "Github", "variant": "glass" }
-        ],
-        "endpoints": {
-          "login": "v1.oauth_login",
-          "callback": "v1.oauth_callback"
-        },
-        "events": {
-          "onClick": "auth:oauth_init"
-        }
-      }
+      "levels": [
+        { "id": 10, "label": "USER", "color": "blue" },
+        { "id": 50, "label": "ADMIN", "color": "purple" },
+        { "id": 100, "label": "MASTER", "color": "gold" }
+      ],
+      "mfa": { "challengeStatus": "MFA_REQUIRED" }
     }
   },
   "visualContracts": [
     {
-      "id": "users_directory",
+      "id": "security_analytics_stats",
+      "type": "STATS",
+      "label": "Métricas de Soberania",
+      "endpoint": "v1.interactions",
+      "tab": "Auditoria",
+      "mapping": {
+        "total_logins": "Logins (24h)",
+        "active_sessions": "Sessões Ativas",
+        "blocked_attempts": "Ataques Bloqueados"
+      }
+    },
+    {
+      "id": "users_control_center",
       "type": "TABLE",
-      "label": "Diretório de Usuários",
+      "label": "Diretório de Identidades Ativas",
       "endpoint": "v1.users",
       "tab": "Usuários",
       "config": {
-        "actions": ["edit"],
-        "columns": ["email", "username", "role_names", "is_active"]
+        "actions": ["promote", "ban", "reset_password"],
+        "columns": ["username", "email", "role_names", "is_active"]
       },
       "mapping": {
-        "email": "E-mail",
-        "username": "Usuário",
-        "role_names": "Nível de Acesso",
-        "is_active": "Status"
+        "username": "Identidade",
+        "email": "E-mail Principal",
+        "role_names": "Nível / Papel",
+        "is_active": "Acesso"
       }
     },
     {
-      "id": "rbac_governance_grid",
+      "id": "rbac_matrix_grid",
       "type": "MANAGEMENT_GRID",
-      "label": "Gestão de Papéis e Segurança",
-      "tab": "Matriz de Acesso",
+      "label": "Matriz de Papéis e Níveis",
+      "tab": "Governança",
       "endpoint": "v1.roles",
-      "groupBy": "system",
+      "groupBy": "level",
+      "ghostGroups": [
+        { "key": 10, "label": "NÍVEL: USER" },
+        { "key": 50, "label": "NÍVEL: ADMIN" },
+        { "key": 100, "label": "NÍVEL: MASTER" }
+      ],
       "mapping": {
         "id": "role_id",
         "title": "name",
-        "status": "status",
-        "isActive": "is_active",
-        "description": "description"
+        "description": "description",
+        "tags": "permission_names",
+        "isActive": "is_active"
       },
       "formMapping": {
         "name": "Nome do Papel",
-        "description": "Descrição da Responsabilidade"
+        "level": "Nível Hierárquico (10-100)",
+        "description": "Finalidade do Papel"
+      },
+      "config": {
+        "allowCreate": true,
+        "tagField": "name"
       }
     },
     {
-      "id": "account_profile_form",
-      "type": "FORM",
-      "label": "Configurações de Perfil",
-      "tab": "Minha Conta",
-      "endpoint": "v1.preferences",
-      "mapping": {
-        "language": "Idioma de Preferência",
-        "notifications": "Receber Notificações (S/N)",
-        "theme_preference": "Tema Preferencial"
+      "id": "permissions_rule_editor",
+      "type": "TABLE",
+      "label": "Dicionário de Regras Técnicas (Permissões)",
+      "tab": "Governança",
+      "endpoint": "v1.permissions",
+      "config": {
+        "allowCreate": true,
+        "columns": ["name", "description"]
       },
-      "actions": [
-        { "label": "Salvar Preferências", "endpoint": "v1.preferences", "method": "PATCH" }
-      ]
+      "mapping": {
+        "name": "Identificador da Regra",
+        "description": "O que esta regra permite?"
+      }
     },
     {
-      "id": "account_password_form",
+      "id": "mfa_vault",
+      "type": "SECURITY_ORCHESTRATOR",
+      "label": "Configuração de MFA Soberano",
+      "tab": "Segurança",
+      "endpoint": "v1.mfa_orch"
+    },
+    {
+      "id": "account_security_form",
       "type": "FORM",
-      "label": "Alteração de Credenciais",
+      "label": "Gestão de Credenciais",
       "tab": "Minha Conta",
       "endpoint": "v1.change_password",
       "mapping": {
@@ -125,26 +128,8 @@
         "new_password": "Nova Senha"
       },
       "actions": [
-        { "label": "Atualizar Senha", "endpoint": "v1.change_password", "method": "POST" }
+        { "label": "Atualizar Chave", "endpoint": "v1.change_password", "method": "POST" }
       ]
-    },
-    {
-      "id": "mfa_orchestrator",
-      "type": "SECURITY_ORCHESTRATOR",
-      "label": "Autenticação em Dois Fatores",
-      "tab": "Minha Conta",
-      "endpoint": "v1.mfa_orch"
-    },
-    {
-      "id": "identity_activity_chart",
-      "type": "CHART",
-      "label": "Linha do Tempo de Interações",
-      "endpoint": "v1.interactions",
-      "tab": "Auditoria",
-      "config": {
-        "type": "area",
-        "color": "indigo"
-      }
     }
   ]
 }

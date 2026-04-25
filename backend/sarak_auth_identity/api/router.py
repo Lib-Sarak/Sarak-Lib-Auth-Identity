@@ -2,13 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 import json
 import os
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, sessionmaker, joinedload, selectinload
 from sqlalchemy import func
 from typing import Optional, List, Any
 from pydantic import BaseModel, EmailStr
 import uuid
 import logging
-from sqlalchemy.orm import Session, sessionmaker, joinedload
 
 # Configuração de Logs
 logger = logging.getLogger(__name__)
@@ -52,14 +51,15 @@ def sovereign_boot():
     Session = sessionmaker(bind=engine)
     db = Session()
     try:
+        target_system = os.getenv("SARAK_SYSTEM_NAME")
         test_user = db.query(User).filter(
             ((User.email == "master@seed.com") | (User.username == "Master")),
-            User.system == "global"
+            User.system == target_system
         ).first()
         if test_user:
             test_user.is_superuser = True
             db.commit()
-            logger.info(f" [!] Sovereign Identity: Superuser status verified/promoted for '{test_user.username}'")
+            logger.info(f" [!] Sovereign Identity: Master status verified for '{test_user.username}' in system '{target_system}'")
     finally:
         db.close()
     
@@ -111,9 +111,10 @@ class PermissionResponse(BaseModel):
 class RoleResponse(BaseModel):
     name: str
     description: Optional[str] = None
+    permission_names: List[str] = []
     permissions: List[PermissionResponse] = []
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class UserResponse(BaseModel):
     user_id: uuid.UUID
@@ -338,14 +339,18 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(get_c
     if not (is_master or is_admin or is_test_user):
         raise HTTPException(status_code=403, detail="Acesso negado: Requer nível Admin ou superior")
     
-    query = db.query(User)
+    # Log de Auditoria Global (Apenas terminal)
+    all_users = db.query(User).all()
+    logger.info(f" [RBAC-Global] Total users in DB: {len(all_users)} | Emails: {[u.email for u in all_users]}")
+
+    query = db.query(User).filter(User.system == current_user.system).options(selectinload(User.roles))
     
     # [TRAVA DE SEGURANÇA] ADMIN não pode ver MASTER
     if not is_master and is_admin:
-        query = query.join(User.roles).filter(Role.name != "MASTER")
+        query = query.filter(Role.name != "MASTER")
         
     users = query.all()
-    logger.info(f" [RBAC-Debug] Users found in DB: {len(users)}")
+    logger.info(f" [RBAC-Debug] System: {current_user.system} | Found: {len(users)}")
     
     # Adiciona os nomes dos papéis formatados para o frontend
     for u in users:
@@ -392,7 +397,7 @@ def get_interactions(
     
     return [{"timestamp": r.hour.isoformat(), "count": r.count} for r in results]
 
-@router.get("/roles")
+@router.get("/roles", response_model=List[RoleResponse])
 def list_roles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Lista todos os papéis disponíveis para gestão."""
     # Diagnóstico: Mostra no terminal quem está tentando acessar

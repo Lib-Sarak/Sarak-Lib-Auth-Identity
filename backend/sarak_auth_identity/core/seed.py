@@ -14,9 +14,13 @@ def seed_auth_identity(engine: Engine):
     from .models import User, Role, Permission
     from . import auth_service
     
-    # Identifica os sistemas para semear (global + sistema atual do projeto)
-    target_system = os.getenv("SARAK_SYSTEM_NAME", "MyService")
-    systems_to_seed = ["global", target_system]
+    # Identifica o sistema soberano de forma estrita (v8.1)
+    target_system = os.getenv("SARAK_SYSTEM_NAME")
+    if not target_system:
+        logger.error(" [!] Auth-Seed: SARAK_SYSTEM_NAME not defined. Seeding aborted to preserve sovereignty.")
+        return
+        
+    systems_to_seed = [target_system]
     
     # 1. Ensure schemas exist
     try:
@@ -60,6 +64,7 @@ def seed_auth_identity(engine: Engine):
         ]
 
         for sys_name in systems_to_seed:
+            logger.info(f" [Seed-Infra] Database URL: {engine.url.render_as_string(hide_password=True)}")
             logger.info(f" [Seed] Syncing master data for system: {sys_name}")
             
             # 2a. Sync Permissions for this system
@@ -95,32 +100,51 @@ def seed_auth_identity(engine: Engine):
                 roles_map[r_config["name"]] = r
 
             # 2c. Sync Users for this system
+            logger.info(f" [Seed-Users] Starting sync for system: {sys_name}")
             for user_data in master_users:
-                existing = db.query(User).filter(
-                    (User.email == user_data["email"]) | (User.username == user_data["username"]),
-                    User.system == sys_name
-                ).first()
+                try:
+                    existing = db.query(User).filter(
+                        (User.email == user_data["email"]) | (User.username == user_data["username"]),
+                        User.system == sys_name
+                    ).first()
 
-                if not existing:
-                    existing = User(
-                        email=user_data["email"],
-                        username=user_data["username"],
-                        password=auth_service.get_password_hash(user_data["password"]),
-                        is_superuser=user_data["is_superuser"],
-                        system=sys_name
-                    )
-                    db.add(existing)
+                    if not existing:
+                        logger.info(f" [Seed-Users] CREATING: {user_data['username']}")
+                        existing = User(
+                            email=user_data["email"],
+                            username=user_data["username"],
+                            password=auth_service.get_password_hash(user_data["password"]),
+                            is_superuser=user_data["is_superuser"],
+                            system=sys_name
+                        )
+                        db.add(existing)
+                    else:
+                        logger.info(f" [Seed-Users] UPDATING: {user_data['username']}")
+                        existing.is_active = True
+                        existing.is_superuser = user_data["is_superuser"]
+                    
                     db.flush()
-                
-                # Sync Roles & Status
-                existing.roles = [roles_map[r_name] for r_name in user_data["roles"]]
-                existing.is_superuser = user_data["is_superuser"]
-                existing.password = auth_service.get_password_hash(user_data["password"])
+                    
+                    # Sync Roles (Garantindo que o mapa tenha o papel)
+                    role_obj = roles_map.get(user_data["roles"][0])
+                    if role_obj:
+                        existing.roles = [role_obj]
+                        logger.info(f" [Seed-Users] Roles synced for {user_data['username']}: {role_obj.name}")
+                    else:
+                        logger.warning(f" [Seed-Users] Role {user_data['roles'][0]} not found in map!")
+
+                except Exception as user_err:
+                    logger.error(f" [Seed-Users] Failed to sync user {user_data['username']}: {user_err}")
+                    db.rollback()
+                    continue
 
         db.commit()
+        logger.info(f" [Seed-Users] Final commit successful for system: {sys_name}")
         logger.info(f" [OK] Sovereign Identity seeding completed for systems: {systems_to_seed}")
+        # Conferência Final
+        total = db.query(User).count()
+        logger.info(f" [Seed-Final] Verification: {total} users in database after sync.")
     except Exception as e:
         db.rollback()
         logger.error(f" [!] Auth-Seed: Critical error during seeding: {e}")
-    finally:
-        db.close()
+    # REMOVIDO: db.close() pois a sessão é gerenciada pelo chamador
