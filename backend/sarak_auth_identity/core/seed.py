@@ -115,6 +115,7 @@ def seed_auth_identity(engine: Engine):
                             username=user_data["username"],
                             password=auth_service.get_password_hash(user_data["password"]),
                             is_superuser=user_data["is_superuser"],
+                            is_active=True,
                             system=sys_name
                         )
                         db.add(existing)
@@ -125,21 +126,17 @@ def seed_auth_identity(engine: Engine):
                     
                     db.flush()
                     
-                    # Sync Roles (Garantindo que o mapa tenha o papel)
+                    # Sync Roles
                     role_obj = roles_map.get(user_data["roles"][0])
                     if role_obj:
                         existing.roles = [role_obj]
-                        logger.info(f" [Seed-Users] Roles synced for {user_data['username']}: {role_obj.name}")
-                    else:
-                        logger.warning(f" [Seed-Users] Role {user_data['roles'][0]} not found in map!")
-
+                    
                 except Exception as user_err:
                     logger.error(f" [Seed-Users] Failed to sync user {user_data['username']}: {user_err}")
                     db.rollback()
                     continue
 
-        db.commit()
-        logger.info(f" [Seed-Users] Final commit successful for system: {sys_name}")
+            db.commit()
         logger.info(f" [OK] Sovereign Identity seeding completed for systems: {systems_to_seed}")
         # Conferência Final
         total = db.query(User).count()

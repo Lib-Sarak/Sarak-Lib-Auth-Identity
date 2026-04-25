@@ -30,15 +30,19 @@ async def get_current_user(
     return await auth_service.get_current_user(credentials=credentials, db=db)
 
 
-# ── Router ────────────────────────────────────────────────────────────────────
-
+# --- Router ---
 router = APIRouter(tags=["Sovereign Identity"])
+
+# Trava de Segurança para Inicialização Única (v8.2.9)
+_boot_completed = False
 
 @router.on_event("startup")
 def sovereign_boot():
     """Sovereign initialization of the Auth-Identity module (v6.8)"""
-    import logging
-    logger = logging.getLogger(__name__)
+    global _boot_completed
+    if _boot_completed:
+        return
+        
     logger.info(" [Sovereign Identity] Initializing module: Auth-Identity (v6.8)")
     
     # 1. Setup DB (Schema + Tables)
@@ -47,22 +51,7 @@ def sovereign_boot():
     # 2. Seed
     seed_auth_identity(engine)
     
-    # 3. Force Superuser for Test User (v6.8 Emergency Promotion)
-    Session = sessionmaker(bind=engine)
-    db = Session()
-    try:
-        target_system = os.getenv("SARAK_SYSTEM_NAME")
-        test_user = db.query(User).filter(
-            ((User.email == "master@seed.com") | (User.username == "Master")),
-            User.system == target_system
-        ).first()
-        if test_user:
-            test_user.is_superuser = True
-            db.commit()
-            logger.info(f" [!] Sovereign Identity: Master status verified for '{test_user.username}' in system '{target_system}'")
-    finally:
-        db.close()
-    
+    _boot_completed = True
     logger.info(" [Sovereign Identity] Auth-Identity module ready.")
 
 @router.get("/module/manifest")
@@ -114,7 +103,7 @@ class RoleResponse(BaseModel):
     permission_names: List[str] = []
     permissions: List[PermissionResponse] = []
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserResponse(BaseModel):
     user_id: uuid.UUID
