@@ -27,6 +27,7 @@ Base = declarative_base()
 
 # Local contexts for middleware compatibility
 identity_context = contextvars.ContextVar("identity_context", default=None)
+level_context = contextvars.ContextVar("level_context", default=10) # 10: USER default
 tenant_context = contextvars.ContextVar("tenant_context", default="public")
 
 def get_db():

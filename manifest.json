@@ -56,7 +56,10 @@
       "endpoint": "v1.users",
       "tab": "Usuários",
       "config": {
-        "actions": ["promote", "ban", "reset_password"],
+        "actions": [
+          { "id": "promote", "label": "Promover", "endpoint": "v1.user_role", "method": "PATCH" },
+          { "id": "ban", "label": "Bloquear", "endpoint": "v1.users", "method": "DELETE" }
+        ],
         "columns": ["username", "email", "role_names", "is_active"]
       },
       "mapping": {
@@ -82,17 +85,19 @@
         "id": "role_id",
         "title": "name",
         "description": "description",
-        "tags": "permission_names",
+        "tags": "permission_tags",
         "isActive": "is_active"
       },
       "formMapping": {
         "name": "Nome do Papel",
         "level": "Nível Hierárquico (10-100)",
-        "description": "Finalidade do Papel"
+        "description": "Finalidade do Papel",
+        "permission_names": "Regras Aplicadas"
       },
       "config": {
         "allowCreate": true,
-        "tagField": "name"
+        "tagField": "name",
+        "tagSource": "v1.permissions"
       }
     },
     {
@@ -108,6 +113,17 @@
       "mapping": {
         "name": "Identificador da Regra",
         "description": "O que esta regra permite?"
+      }
+    },
+    {
+      "id": "oauth_sso_config",
+      "type": "GRID",
+      "label": "Provedores de SSO (OAuth)",
+      "tab": "Segurança",
+      "endpoint": "v1.interactions",
+      "mapping": {
+        "title": "Google / GitHub",
+        "status": "Configurado"
       }
     },
     {

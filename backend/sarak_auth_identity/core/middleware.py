@@ -1,7 +1,7 @@
 import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from ..database import identity_context, tenant_context
+from ..database import identity_context, tenant_context, level_context
 from . import auth_service
 
 logger = logging.getLogger(__name__)
@@ -57,6 +57,7 @@ async def identity_middleware(request: Request, call_next):
 
     auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
     user_id_context_token = None
+    level_context_token = None
 
     if not auth_header:
         logger.warning(f" [Identity-Gateway] Missing Bearer token or System Key for protected route: {request.url.path}")
@@ -72,8 +73,12 @@ async def identity_middleware(request: Request, call_next):
             
             if payload and payload.get("sub") and payload.get("type") == "access":
                 uid = payload.get("sub")
+                level = payload.get("level", 10)
+                
                 user_id_context_token = identity_context.set(uid)
-                logger.info(f" [Identity-Gateway] Token validated for UUID: {uid}")
+                level_context_token = level_context.set(level)
+                
+                logger.info(f" [Identity-Gateway] Token validated for UUID: {uid} | Level: {level}")
             else:
                 logger.warning(" [Identity-Gateway] Token decoded but missing 'sub' or invalid type")
                 return JSONResponse(
@@ -99,8 +104,12 @@ async def identity_middleware(request: Request, call_next):
     finally:
         if user_id_context_token:
             identity_context.reset(user_id_context_token)
-        else:
+        if level_context_token:
+            level_context.reset(level_context_token)
+            
+        if not user_id_context_token:
             identity_context.set(None)
+            level_context.set(10)
 
 async def tenant_middleware(request: Request, call_next):
     """Fallback genérico transferido."""

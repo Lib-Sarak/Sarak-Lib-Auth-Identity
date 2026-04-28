@@ -98,9 +98,13 @@ class PermissionResponse(BaseModel):
         from_attributes = True
 
 class RoleResponse(BaseModel):
+    role_id: uuid.UUID
     name: str
+    level: int = 10
     description: Optional[str] = None
+    is_active: bool = True
     permission_names: List[str] = []
+    permission_tags: List[dict] = [] # Formato enriquecido para UI: {label, color}
     permissions: List[PermissionResponse] = []
     class Config:
         from_attributes = True
@@ -222,9 +226,18 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
         }
 
     user_id_str = str(user.user_id)
-    # Include system in JWT
-    access_token = auth_service.create_access_token(data={"sub": user_id_str, "system": data.system})
-    refresh_token = auth_service.create_refresh_token(data={"sub": user_id_str, "system": data.system})
+    user_level = auth_service.get_user_max_level(user)
+    
+    # Include system and level in JWT for Sovereign RLS and Hierarchy
+    token_data = {
+        "sub": user_id_str, 
+        "system": data.system,
+        "level": user_level,
+        "roles": [r.name for r in user.roles]
+    }
+    
+    access_token = auth_service.create_access_token(data=token_data)
+    refresh_token = auth_service.create_refresh_token(data=token_data)
     
     # Register session
     auth_service.create_session(
@@ -244,7 +257,8 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
         "user_id": user_id_str,
         "username": user.username,
         "email": user.email,
-        "system": user.system
+        "system": user.system,
+        "level": user_level
     }
     
     return {
@@ -263,7 +277,7 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     user_id = payload.get("sub")
     
     # Verify session in DB
-    from ..core.models import UserSession
+    from ..core.models import UserSession, User
     session = db.query(UserSession).filter(
         UserSession.refresh_token == data.refresh_token,
         UserSession.is_revoked == False
@@ -272,9 +286,14 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=401, detail="Session revoked or not found")
     
+    user = db.query(User).filter(User.user_id == session.user_id).first()
+    user_level = auth_service.get_user_max_level(user) if user else 10
+
     new_access_token = auth_service.create_access_token(data={
         "sub": user_id, 
-        "system": session.system
+        "system": session.system,
+        "level": user_level,
+        "roles": [r.name for r in user.roles] if user else []
     })
     return {"access_token": new_access_token, "token_type": "bearer"}
 
@@ -333,11 +352,15 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(get_c
     logger.info(f" [RBAC-Infra] Database URL: {engine.url.render_as_string(hide_password=True)}")
     logger.info(f" [RBAC-Global] Total users in DB: {len(all_users)} | Emails: {[u.email for u in all_users]}")
 
-    query = db.query(User).filter(User.system == current_user.system).options(selectinload(User.roles))
+    # [Higiene Sarak] MASTER vê tudo, ADMIN vê apenas o próprio sistema
+    query = db.query(User).options(selectinload(User.roles))
+    
+    if not is_master:
+        query = query.filter(User.system == current_user.system)
     
     # [TRAVA DE SEGURANÇA] ADMIN não pode ver MASTER
     if not is_master and is_admin:
-        query = query.filter(Role.name != "MASTER")
+        query = query.filter(~User.roles.any(Role.name == "MASTER"))
         
     users = query.all()
     logger.info(f" [RBAC-Debug] System: {current_user.system} | Found: {len(users)}")
@@ -389,18 +412,23 @@ def get_interactions(
 
 @router.get("/roles", response_model=List[RoleResponse])
 def list_roles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Lista todos os papéis disponíveis para gestão."""
-    # Diagnóstico: Mostra no terminal quem está tentando acessar
-    print(f" [DEBUG-Auth] Tentativa de acesso a /roles: User={current_user.username}, Email={current_user.email}, Super={current_user.is_superuser}")
-    
-    # Bypass de Teste: Aceita o nome 'Master' ou o e-mail oficial
+    """Lista todos os papéis disponíveis para gestão (Com enriquecimento de tags)."""
     is_test_user = current_user.username.lower() == "master" or current_user.email.lower() == "master@seed.com"
+    is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
     
-    if current_user.is_superuser or is_test_user:
-        return db.query(Role).filter(Role.system == current_user.system).options(joinedload(Role.permissions)).all()
+    if not (is_master or is_test_user):
+        raise HTTPException(status_code=403, detail="Acesso negado: Requer nível MASTER")
+
+    roles = db.query(Role).filter(Role.system == current_user.system).options(joinedload(Role.permissions)).all()
+    
+    # Enriquecimento de tags para o componente MANAGEMENT_GRID
+    for role in roles:
+        role.permission_tags = [
+            {"label": p.name, "color": "emerald" if "manage" in p.name else "blue"} 
+            for p in role.permissions
+        ]
         
-    logger.warning(f" [RBAC-Audit] Access Denied for {current_user.username} ({current_user.email}) on /roles")
-    raise HTTPException(status_code=403, detail="Acesso negado: Requer privilégios de Superuser")
+    return roles
 
 @router.post("/roles")
 def create_role(name: str, permissions: List[str], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -419,8 +447,14 @@ def assign_role(user_id: uuid.UUID, role_names: List[str], db: Session = Depends
 
 @router.get("/permissions")
 def list_permissions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Lista todas as permissões técnicas cadastradas para o sistema ativo."""
-    return db.query(Permission).filter(Permission.system == current_user.system).all()
+    """Lista todas as permissões técnicas (Visão Global para MASTER)."""
+    is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
+    
+    query = db.query(Permission)
+    if not is_master:
+        query = query.filter(Permission.system == current_user.system)
+        
+    return query.all()
 
 @router.post("/interactions")
 def log_user_interaction(
@@ -551,8 +585,16 @@ def login_mfa(request: Request, data: MFALoginRequest, db: Session = Depends(get
     
     # Success: Issue full tokens
     user_id_str = str(user.user_id)
-    access_token = auth_service.create_access_token(data={"sub": user_id_str, "system": system})
-    refresh_token = auth_service.create_refresh_token(data={"sub": user_id_str, "system": system})
+    user_level = auth_service.get_user_max_level(user)
+    token_data = {
+        "sub": user_id_str, 
+        "system": system,
+        "level": user_level,
+        "roles": [r.name for r in user.roles]
+    }
+    
+    access_token = auth_service.create_access_token(data=token_data)
+    refresh_token = auth_service.create_refresh_token(data=token_data)
     
     auth_service.create_session(
         db, 
@@ -703,8 +745,16 @@ async def oauth_callback(
         
         # 4. Emissão de Tokens Sarak (Access & Refresh)
         user_id_str = str(user.user_id)
-        sarak_access = auth_service.create_access_token(data={"sub": user_id_str, "system": state})
-        sarak_refresh = auth_service.create_refresh_token(data={"sub": user_id_str, "system": state})
+        user_level = auth_service.get_user_max_level(user)
+        token_data = {
+            "sub": user_id_str, 
+            "system": state,
+            "level": user_level,
+            "roles": [r.name for r in user.roles]
+        }
+        
+        sarak_access = auth_service.create_access_token(data=token_data)
+        sarak_refresh = auth_service.create_refresh_token(data=token_data)
         
         # 5. Registro de Sessão
         auth_service.create_session(
