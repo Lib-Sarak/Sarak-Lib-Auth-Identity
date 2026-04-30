@@ -155,7 +155,7 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
             if (currentToken) {
                 try {
                     // We use authApi directly to get the current profile
-                    const response = await authApi.get('/me');
+                    const response = await authApi.get('me');
                     const profile = response.data;
                     setUser(profile);
                     localStorage.setItem(`${system}_user`, JSON.stringify(profile));
