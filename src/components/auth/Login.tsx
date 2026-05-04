@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../providers/AuthProvider';
-import { SarakAuthScreen } from '@sarak/lib-ui-core';
-import { AuthModuleManifest } from "../../index";
+import { SarakAuthScreen, useSarakUI } from '@sarak/lib-ui-core';
+import { AuthModuleManifest } from "../../manifest";
 
 interface Branding {
     name: string;
@@ -29,8 +29,14 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
     const [mfaCode, setMfaCode] = useState('');
 
     const { login: loginAPI, register: registerAPI, verifyMFA, getOAuthLoginUrl } = useAuth();
+    const { registeredModules } = useSarakUI();
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Recupera o manifesto dinâmico (fundido pelo plugin)
+    const activeModule = registeredModules?.find(m => m.id === 'sarak-lib-auth-identity' || m.id === 'auth');
+    const manifest = (activeModule?.manifest || AuthModuleManifest) as typeof AuthModuleManifest;
+    const oauthConfig = manifest.capabilities?.security?.oauth;
 
     // Where to redirect after login
     const from = (location.state as any)?.from?.pathname || "/";
@@ -120,9 +126,9 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
             onSubmit={handleSubmit}
             onSocialLogin={handleSocialLogin}
             socialConfig={{
-                enabled: AuthModuleManifest.capabilities?.security?.oauth?.enabled || false,
-                display: AuthModuleManifest.capabilities?.security?.oauth?.display || 'full',
-                providers: AuthModuleManifest.capabilities?.security?.oauth?.providers || []
+                enabled: oauthConfig?.enabled || false,
+                display: oauthConfig?.display || 'full',
+                providers: (oauthConfig?.providers || []).map((p: any) => ({ id: p, variant: 'glass' }))
             }}
             onMasterLogin={() => {
                 setUsername('master@seed.com');

@@ -5,14 +5,20 @@ import axios from 'axios';
  * v5.5 - Independência total da lib-shared
  */
 
-const baseURL = '/api/auth';
+let currentBaseURL = '/api/auth'; // Fallback
 
 export const authApi = axios.create({
-    baseURL,
+    baseURL: currentBaseURL,
     headers: {
         'Content-Type': 'application/json',
     },
 });
+
+export const configureAuthApi = (baseUrl: string) => {
+    currentBaseURL = baseUrl;
+    authApi.defaults.baseURL = baseUrl;
+    console.log(`[Auth-Identity] Cliente HTTP configurado com baseURL: ${baseUrl}`);
+};
 
 // Exportação secundária para compatibilidade
 export const api = authApi;
@@ -29,8 +35,9 @@ authApi.interceptors.request.use((config) => {
         config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Injeção obrigatória do contexto do sistema para o backend
-    config.headers['X-Sarak-System'] = system;
+    // Injeção obrigatória do contexto do sistema para o backend (Sincronizado v10.2)
+    config.headers['X-System-ID'] = system;
+    config.headers['X-Tenant-ID'] = system;
     
     return config;
 });

@@ -1,9 +1,14 @@
-{
+/**
+ * AuthModuleManifest (v8.1)
+ * Extraído para arquivo próprio para evitar dependências circulares.
+ */
+export const AuthModuleManifest = {
   "contract": "v6.8",
   "id": "sarak-lib-auth-identity",
   "label": "Sovereign Identity",
   "icon": "ShieldCheck",
   "category": "Core Security",
+  "baseUrl": "/auth",
   "version": "8.0.0",
   "priority": 0,
   "endpoints": {
@@ -37,7 +42,7 @@
       "oauth": {
         "enabled": true,
         "display": "full",
-        "providers": ["google", "microsoft"]
+        "providers": ["google", "github"]
       },
       "rateLimit": {
         "handleStatus": 429,
@@ -156,5 +161,6 @@
         { "label": "Atualizar Chave", "endpoint": "v1.change_password", "method": "POST" }
       ]
     }
-  ]
-}
+  ],
+  "components": {}
+};

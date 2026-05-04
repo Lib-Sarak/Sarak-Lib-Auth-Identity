@@ -1,0 +1,35 @@
+{
+  "system": {
+    "id": "[SYSTEM_ID]",
+    "name": "[SYSTEM_VISUAL_NAME]",
+    "version": "1.0.0",
+    "sovereignty": "v10.0"
+  },
+  "modules": [
+    {
+      "id": "dashboard",
+      "name": "Dashboard",
+      "icon": "LayoutDashboard",
+      "path": "/",
+      "componentId": "dashboard",
+      "type": "internal"
+    },
+    {
+      "id": "personalization",
+      "name": "Personalização",
+      "icon": "Palette",
+      "path": "/personalization",
+      "componentId": "personalization",
+      "type": "native"
+    }
+  ],
+  "design": {
+    "theme": "industrial",
+    "layout": "sovereign",
+    "defaults": {
+      "glass": 0.8,
+      "spotlight": true,
+      "neon": true
+    }
+  }
+}

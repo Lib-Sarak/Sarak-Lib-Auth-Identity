@@ -107,7 +107,7 @@ export const AuthFlowService = {
 
     refresh: async (refreshToken: string) => {
         try {
-            const response = await authApi.post('/refresh', { refresh_token: refreshToken });
+            const response = await authApi.post(manifest.endpoints.v1.refresh, { refresh_token: refreshToken });
             return { success: true, token: response.data.access_token };
         } catch (error) {
             return { success: false };
@@ -116,7 +116,7 @@ export const AuthFlowService = {
 
     logout: async (refreshToken: string) => {
         try {
-            await authApi.post('/logout', { refresh_token: refreshToken });
+            await authApi.post(manifest.endpoints.v1.logout, { refresh_token: refreshToken });
             return { success: true };
         } catch (error) {
             return { success: false };

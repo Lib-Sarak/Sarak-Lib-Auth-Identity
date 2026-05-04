@@ -2,7 +2,10 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../providers/AuthProvider';
 
-export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ProtectedRoute: React.FC<{ 
+    children: React.ReactNode,
+    loginComponent?: React.ReactNode 
+}> = ({ children, loginComponent }) => {
     const { token, loading, isHydrated } = useAuth();
     const location = useLocation();
 
@@ -15,6 +18,16 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     if (!token) {
+        // Se um componente de login foi fornecido, renderizamos ele diretamente
+        // Isso evita loops de redirecionamento em SPAs complexas
+        if (loginComponent) {
+            return <>{loginComponent}</>;
+        }
+
+        // Evita loop infinito se já estivermos na tela de login via URL
+        if (location.pathname === '/login') {
+            return <>{children}</>;
+        }
         // Redirect to login but keep current location
         return <Navigate to="/login" state={{ from: location }} replace />;
     }

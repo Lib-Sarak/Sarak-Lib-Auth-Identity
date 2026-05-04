@@ -20,6 +20,11 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
     const [token, setToken] = useState<string | null>(localStorage.getItem(`${system}_token`));
     const [loading, setLoading] = useState(true);
     const [isHydrated, setIsHydrated] = useState(false);
+    
+    // Injeção de soberania para interceptores de rede (v7.0)
+    if (typeof window !== 'undefined') {
+        (window as any).__SARAK_SYSTEM__ = system;
+    }
 
     const logout = useCallback(async () => {
         const refreshToken = localStorage.getItem(`${system}_refresh_token`);
@@ -159,10 +164,17 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
                     const profile = response.data;
                     setUser(profile);
                     localStorage.setItem(`${system}_user`, JSON.stringify(profile));
-                } catch (error) {
-                    console.error("Failed to fetch user profile", error);
-                    // If token is invalid, we might want to clear it, 
-                    // but for now let's just use the stored user as fallback
+                } catch (error: any) {
+                    // Silenciamos o erro se for apenas um token expirado ou inválido (v7.2)
+                    if (error.response?.status !== 401 && error.response?.status !== 403) {
+                        console.error("Failed to fetch user profile", error);
+                    }
+                    
+                    // Se o token falhou, removemos ele para evitar loops de 401
+                    if (error.response?.status === 401) {
+                        localStorage.removeItem(`${system}_token`);
+                    }
+
                     const storedUser = localStorage.getItem(`${system}_user`);
                     if (storedUser && storedUser !== 'undefined') {
                         setUser(JSON.parse(storedUser));

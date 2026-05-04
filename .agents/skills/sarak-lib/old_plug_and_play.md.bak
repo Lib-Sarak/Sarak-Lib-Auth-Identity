@@ -1,0 +1,34 @@
+# Mecânica Plug & Play (API Discovery)
+
+O conceito de "Sovereign Plugin" evoluiu para um modelo onde o módulo não "se registra" no código, mas é "descoberto" pelo orquestrador.
+
+## 1. O Discovery System
+Substituindo o antigo Registry, o sistema de descoberta utiliza o `manifest.json` de cada módulo para mapear funcionalidades.
+
+### Fluxo de Inicialização
+1. O **Orquestrador** varre a lista de endpoints de módulos ativos (configurados via `.env`).
+2. Para cada endpoint, ele chama `GET /api/v1/module/manifest`.
+3. O **UI-Core** recebe essa lista de manifestos e monta dinamicamente:
+   - Sidebar (Ícone, Label, Categoria)
+   - Rotas de Navegação
+   - Permissões de Acesso
+
+## 2. Implementação do Manifesto
+Cada módulo deve servir seu manifesto estaticamente ou via endpoint:
+
+```json
+{
+  "id": "test-chat",
+  "label": "Chat de Teste",
+  "icon": "MessageSquare",
+  "category": "AI Tools",
+  "priority": 10,
+  "entrypoint": "/api/v1/test-chat/view"
+}
+```
+
+## 3. Renderização Dinâmica (UI-Core)
+O `UI-Core` não importa componentes React dos módulos. Ele utiliza um motor de renderização que transforma os dados da API em componentes visuais (Tabelas, Formulários, Gráficos) seguindo o **Sarak Design System**.
+
+- **Vantagem**: Você pode atualizar a lógica de um módulo (`backend`) sem precisar recompilar ou dar `npm install` no Portal/UI-Core.
+- **Independência**: Se um módulo estiver offline, apenas sua aba não aparece ou exibe um estado de erro, sem derrubar o resto do sistema.
