@@ -74,6 +74,7 @@ class User(Base):
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), nullable=False, index=True)
     username = Column(String(100), nullable=False, index=True)
+    full_name = Column(String(255), nullable=True) # Nome completo capturado ou editado
     system = Column(String(50), nullable=False, index=True)
     password = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -85,6 +86,15 @@ class User(Base):
     oauth_id = Column(String(255), nullable=True)
     avatar_url = Column(Text, nullable=True)
     
+    # Address Fields (v8.6)
+    address_street = Column(String(255), nullable=True)
+    address_number = Column(String(50), nullable=True)
+    address_complement = Column(String(255), nullable=True)
+    address_city = Column(String(100), nullable=True)
+    address_state = Column(String(100), nullable=True)
+    address_zip = Column(String(20), nullable=True)
+    address_country = Column(String(100), default="Brasil")
+
     # MFA Fields (v7.7)
     mfa_enabled = Column(Boolean, default=False, nullable=False)
     mfa_secret = Column(String(100), nullable=True)

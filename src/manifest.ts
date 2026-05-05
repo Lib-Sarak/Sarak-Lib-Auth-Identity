@@ -2,7 +2,34 @@
  * AuthModuleManifest (v8.1)
  * Extraído para arquivo próprio para evitar dependências circulares.
  */
-export const AuthModuleManifest = {
+export interface VisualContract {
+  id: string;
+  type: string;
+  label: string;
+  endpoint: string;
+  tab: string;
+  requiredPermission?: string;
+  mapping?: Record<string, string>;
+  config?: any;
+  groupBy?: string;
+  ghostGroups?: any[];
+  formMapping?: Record<string, string>;
+  actions?: any[];
+}
+
+export const AuthModuleManifest: {
+  contract: string;
+  id: string;
+  label: string;
+  icon: string;
+  category: string;
+  baseUrl: string;
+  version: string;
+  priority: number;
+  endpoints: any;
+  capabilities: any;
+  visualContracts: VisualContract[];
+} = {
   "contract": "v6.8",
   "id": "sarak-lib-auth-identity",
   "label": "Sovereign Identity",
@@ -57,10 +84,72 @@ export const AuthModuleManifest = {
       "label": "Métricas de Soberania",
       "endpoint": "v1.interactions",
       "tab": "Auditoria",
+      "requiredPermission": "rbac:view",
       "mapping": {
         "total_logins": "Logins (24h)",
         "active_sessions": "Sessões Ativas",
         "blocked_attempts": "Ataques Bloqueados"
+      },
+      "config": {
+        "clickable": true,
+        "detailMappings": {
+          "total_logins": "audit_logins_table",
+          "active_sessions": "audit_sessions_table",
+          "blocked_attempts": "audit_attacks_table"
+        }
+      }
+    },
+    {
+      "id": "audit_sessions_table",
+      "type": "TABLE",
+      "label": "Detalhamento de Sessões Ativas",
+      "endpoint": "v1.interactions",
+      "tab": "Auditoria",
+      "requiredPermission": "rbac:view",
+      "config": {
+        "params": { "scope": "sessions" },
+        "columns": ["ip_address", "user_agent", "created_at", "expires_at"]
+      },
+      "mapping": {
+        "ip_address": "Endereço IP",
+        "user_agent": "Dispositivo / Navegador",
+        "created_at": "Início",
+        "expires_at": "Expiração"
+      }
+    },
+    {
+      "id": "audit_logins_table",
+      "type": "TABLE",
+      "label": "Histórico de Logins (24h)",
+      "endpoint": "v1.interactions",
+      "tab": "Auditoria",
+      "requiredPermission": "rbac:view",
+      "config": {
+        "params": { "scope": "logins" },
+        "columns": ["username", "ip", "status", "created_at"]
+      },
+      "mapping": {
+        "username": "Identidade",
+        "ip": "Origem IP",
+        "status": "Resultado",
+        "created_at": "Horário"
+      }
+    },
+    {
+      "id": "audit_attacks_table",
+      "type": "TABLE",
+      "label": "Registro de Ataques / Falhas",
+      "endpoint": "v1.interactions",
+      "tab": "Auditoria",
+      "requiredPermission": "rbac:view",
+      "config": {
+        "params": { "scope": "attacks" },
+        "columns": ["ip", "reason", "created_at"]
+      },
+      "mapping": {
+        "ip": "Origem Suspeita",
+        "reason": "Motivo do Bloqueio",
+        "created_at": "Data/Hora"
       }
     },
     {
@@ -69,6 +158,7 @@ export const AuthModuleManifest = {
       "label": "Diretório de Identidades Ativas",
       "endpoint": "v1.users",
       "tab": "Usuários",
+      "requiredPermission": "user:manage",
       "config": {
         "actions": [
           { "id": "promote", "label": "Promover", "endpoint": "v1.user_role", "method": "PATCH" },
@@ -89,6 +179,7 @@ export const AuthModuleManifest = {
       "label": "Matriz de Papéis e Níveis",
       "tab": "Governança",
       "endpoint": "v1.roles",
+      "requiredPermission": "rbac:manage",
       "groupBy": "level",
       "ghostGroups": [
         { "key": 10, "label": "NÍVEL: USER" },
@@ -120,6 +211,7 @@ export const AuthModuleManifest = {
       "label": "Dicionário de Regras Técnicas (Permissões)",
       "tab": "Governança",
       "endpoint": "v1.permissions",
+      "requiredPermission": "rbac:manage",
       "config": {
         "allowCreate": true,
         "columns": ["name", "description"]
@@ -135,6 +227,7 @@ export const AuthModuleManifest = {
       "label": "Provedores de SSO (OAuth)",
       "tab": "Segurança",
       "endpoint": "v1.interactions",
+      "requiredPermission": "rbac:manage",
       "mapping": {
         "title": "Google / GitHub",
         "status": "Configurado"
@@ -159,6 +252,26 @@ export const AuthModuleManifest = {
       },
       "actions": [
         { "label": "Atualizar Chave", "endpoint": "v1.change_password", "method": "POST" }
+      ]
+    },
+    {
+      "id": "user_profile_form",
+      "type": "FORM",
+      "label": "Informações Pessoais",
+      "tab": "Minha Conta",
+      "endpoint": "v1.preferences",
+      "mapping": {
+        "full_name": "Nome Completo",
+        "address_street": "Logradouro (Rua/Av)",
+        "address_number": "Número",
+        "address_complement": "Complemento",
+        "address_city": "Cidade",
+        "address_state": "Estado / UF",
+        "address_zip": "CEP",
+        "address_country": "País"
+      },
+      "actions": [
+        { "label": "Salvar Perfil", "endpoint": "v1.preferences", "method": "PATCH" }
       ]
     }
   ],

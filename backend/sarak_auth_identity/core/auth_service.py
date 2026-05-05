@@ -129,6 +129,15 @@ def create_session(db: Session, user_id: str, system: str, refresh_token: str, u
     from .models import UserSession
     from uuid import UUID
     
+    # [POLÍTICA SOBERANA] Revogação de sessões anteriores (Sessão Única v8.5)
+    # Antes de criar a nova, invalidamos todas as outras ativas para este usuário neste sistema.
+    db.query(UserSession).filter(
+        UserSession.user_id == UUID(user_id),
+        UserSession.system == system,
+        UserSession.is_revoked == False
+    ).update({"is_revoked": True})
+    db.flush() # Sincroniza sem commitar ainda para manter a transação atômica
+
     expire = datetime.utcnow() + timedelta(days=30)
     session = UserSession(
         user_id=UUID(user_id),
@@ -303,14 +312,24 @@ async def get_current_user(
 
 # --- RBAC Management (v6.8) ---
 
-def update_or_create_role(db: Session, name: str, system: str, permissions: List[str]):
+def update_or_create_role(db: Session, name: str, system: str, permissions: List[str], level: int = 10, description: str = None):
     from .models import Role, Permission
     role = db.query(Role).filter(Role.name == name, Role.system == system).first()
     if not role:
-        role = Role(name=name, system=system, description=f"Custom role: {name} for {system}")
+        role = Role(
+            name=name, 
+            system=system, 
+            level=level,
+            description=description or f"Custom role: {name} for {system}"
+        )
         db.add(role)
         db.commit()
         db.refresh(role)
+    else:
+        # Atualiza metadados do papel (v8.1)
+        role.level = level
+        if description:
+            role.description = description
     
     # Sync permissions
     role.permissions = []
@@ -395,7 +414,7 @@ def confirm_password_reset(db: Session, token: str, new_password: str, system: s
 
 # --- OAuth Processing (v7.6) ---
 
-def process_oauth_user(db: Session, provider: str, oauth_id: str, email: str, username: str, system: str, avatar_url: str = None) -> User:
+def process_oauth_user(db: Session, provider: str, oauth_id: str, email: str, username: str, system: str, avatar_url: str = None, full_name: str = None) -> User:
     """Realiza o Upsert do usuÃ¡rio OAuth e vincula ao sistema atual."""
     user = db.query(User).filter(User.email == email, User.system == system).first()
     
@@ -403,6 +422,7 @@ def process_oauth_user(db: Session, provider: str, oauth_id: str, email: str, us
         user = User(
             email=email,
             username=username,
+            full_name=full_name or username,
             system=system,
             oauth_provider=provider,
             oauth_id=oauth_id,
@@ -416,6 +436,8 @@ def process_oauth_user(db: Session, provider: str, oauth_id: str, email: str, us
         user.oauth_id = oauth_id
         if avatar_url:
             user.avatar_url = avatar_url
+        if full_name and not user.full_name:
+            user.full_name = full_name
             
     db.commit()
     db.refresh(user)

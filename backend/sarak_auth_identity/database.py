@@ -101,6 +101,16 @@ def setup_identity_db(ext_engine=None):
             # Preferences (v8.0 Migration)
             conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{{}}'"))
             
+            # Profile Expansion (v8.6 Migration)
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_street VARCHAR(255)"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_number VARCHAR(50)"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_complement VARCHAR(255)"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_city VARCHAR(100)"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_state VARCHAR(100)"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_zip VARCHAR(20)"))
+            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_country VARCHAR(100) DEFAULT 'Brasil'"))
+
             conn.commit()
         
         logger.info(f" [Auth DB] Sovereignty: Schema '{SCHEMA_NAME}' and multi-tenant columns verified.")

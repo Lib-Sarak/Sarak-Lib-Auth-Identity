@@ -113,6 +113,7 @@ class UserResponse(BaseModel):
     user_id: uuid.UUID
     username: str
     email: str
+    full_name: Optional[str] = None
     system: str
     is_active: bool
     roles: List[RoleResponse] = []
@@ -121,6 +122,16 @@ class UserResponse(BaseModel):
     active_sessions: int = 0
     preferences: Optional[dict] = {}
     mfa_enabled: bool = False
+    avatar_url: Optional[str] = None
+    
+    # Address (v8.6)
+    address_street: Optional[str] = None
+    address_number: Optional[str] = None
+    address_complement: Optional[str] = None
+    address_city: Optional[str] = None
+    address_state: Optional[str] = None
+    address_zip: Optional[str] = None
+    address_country: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -159,8 +170,11 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
-class UserPreferencesUpdate(BaseModel):
-    preferences: dict
+class RoleCreateUpdate(BaseModel):
+    name: str
+    level: int = 10
+    description: Optional[str] = None
+    permission_names: List[str] = []
 
 # --- Security Dependencies ---
 
@@ -187,10 +201,9 @@ def update_role_permissions(
     current_user: User = Depends(get_current_user)
 ):
     """Sincroniza as permissões de um papel (Gestão Ativa de RBAC)."""
-    # Proteção: Apenas MASTER pode mexer na estrutura de RBAC
-    is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
-    if not is_master:
-        raise HTTPException(status_code=403, detail="Acesso negado: Apenas MASTER pode configurar a matriz RBAC")
+    # [CAPABILITY RBAC] Apenas quem tem permissão explícita de gestão de RBAC
+    if not auth_service.has_permission(current_user, "rbac:manage"):
+        raise HTTPException(status_code=403, detail="Acesso negado: Requer permissão 'rbac:manage'")
 
     role = db.query(Role).filter(Role.role_id == role_id).first()
     if not role:
@@ -328,7 +341,9 @@ def get_me(db: Session = Depends(get_db), current_user: User = Depends(get_curre
     # Governança: Contagem de sessões ativas reais
     active_sessions = db.query(UserSession).filter(
         UserSession.user_id == current_user.user_id,
-        UserSession.is_revoked == False
+        UserSession.system == current_user.system,
+        UserSession.is_revoked == False,
+        UserSession.expires_at > func.now()
     ).count()
             
     response_data = UserResponse.from_orm(current_user)
@@ -339,13 +354,16 @@ def get_me(db: Session = Depends(get_db), current_user: User = Depends(get_curre
 @router.get("/users", response_model=List[UserResponse])
 def list_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Lista todos os usuários e seus papéis (Requer Admin ou Master)."""
-    # Bypass para desenvolvedor 'Master'
+    # [CAPABILITY RBAC] Transição de Nível para Permissão (v8.1)
     is_test_user = current_user.username.lower() == "master" or current_user.email.lower() == "master@seed.com"
-    is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
-    is_admin = any(r.name == "ADMIN" for r in current_user.roles)
+    has_access = (
+        auth_service.has_permission(current_user, "identity:view") or 
+        auth_service.has_permission(current_user, "user:manage") or
+        is_test_user
+    )
     
-    if not (is_master or is_admin or is_test_user):
-        raise HTTPException(status_code=403, detail="Acesso negado: Requer nível Admin ou superior")
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Acesso negado: Requer permissão de visualização de identidades")
     
     # Log de Auditoria Global (Apenas terminal)
     all_users = db.query(User).all()
@@ -355,20 +373,26 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(get_c
     # [Higiene Sarak] MASTER vê tudo, ADMIN vê apenas o próprio sistema
     query = db.query(User).options(selectinload(User.roles))
     
-    if not is_master:
+    if not auth_service.has_permission(current_user, "rbac:manage"):
         query = query.filter(User.system == current_user.system)
     
-    # [TRAVA DE SEGURANÇA] ADMIN não pode ver MASTER
-    if not is_master and is_admin:
+    # [TRAVA DE SEGURANÇA] Apenas quem pode gerir RBAC total vê usuários MASTER
+    if not auth_service.has_permission(current_user, "rbac:manage"):
         query = query.filter(~User.roles.any(Role.name == "MASTER"))
         
     users = query.all()
     logger.info(f" [RBAC-Debug] System: {current_user.system} | Found: {len(users)}")
     
-    # Adiciona os nomes dos papéis formatados para o frontend
+    # Adiciona os nomes dos papéis formatados e contagem de sessões para o frontend
     for u in users:
         u.role_names = ", ".join([r.name for r in u.roles])
-        logger.info(f" [RBAC-Debug] User: {u.email} | Roles: {u.role_names}")
+        u.active_sessions = db.query(UserSession).filter(
+            UserSession.user_id == u.user_id,
+            UserSession.system == u.system,
+            UserSession.is_revoked == False,
+            UserSession.expires_at > func.now()
+        ).count()
+        logger.info(f" [RBAC-Debug] User: {u.email} | Roles: {u.role_names} | Sessions: {u.active_sessions}")
         
     return users
 
@@ -379,14 +403,17 @@ def update_user_role(user_id: uuid.UUID, role_name: str, db: Session = Depends(g
     if not target_user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
         
-    # [PROTEÇÃO MASTER] Apenas Master pode alterar um Master
-    is_test_user = current_user.username.lower() == "master" or current_user.email.lower() == "master@seed.com"
+    # [CAPABILITY RBAC] Verificação de permissão de gestão de usuários
+    if not auth_service.has_permission(current_user, "user:manage"):
+        raise HTTPException(status_code=403, detail="Acesso negado: Requer permissão 'user:manage'")
+        
+    # [PROTEÇÃO SOBERANA] Apenas quem tem rbac:manage pode promover alguém para MASTER
     is_target_master = any(r.name == "MASTER" for r in target_user.roles)
-    is_current_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
+    is_current_can_rbac = auth_service.has_permission(current_user, "rbac:manage")
     
-    if is_target_master and not (is_current_master or is_test_user):
-        logger.warning(f" [SECURITY] Admin {current_user.email} tentou alterar Master {target_user.email}")
-        raise HTTPException(status_code=403, detail="Ação proibida: Admin não pode alterar nível MASTER")
+    if is_target_master and not is_current_can_rbac:
+        logger.warning(f" [SECURITY] Tentativa de alteração de Master {target_user.email} por {current_user.email}")
+        raise HTTPException(status_code=403, detail="Ação proibida: Nível de acesso insuficiente para alterar MASTER")
         
     new_role = db.query(Role).filter(Role.name == role_name).first()
     if not new_role:
@@ -398,45 +425,103 @@ def update_user_role(user_id: uuid.UUID, role_name: str, db: Session = Depends(g
 
 @router.get("/interactions")
 def get_interactions(
+    scope: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Retorna o histórico de interações para o gráfico de Auditoria."""
-    # Agrupa por hora para o gráfico (PostgreSQL)
-    results = db.query(
-        func.date_trunc('hour', UserInteraction.created_at).label('hour'),
-        func.count(UserInteraction.interaction_id).label('count')
-    ).filter(UserInteraction.system == current_user.system).group_by('hour').order_by('hour').limit(24).all()
+    """
+    Retorna métricas agregadas ou detalhadas para o Visual Contract STATS e TABLES (v8.6).
+    """
+    from datetime import datetime, timedelta
     
-    return [{"timestamp": r.hour.isoformat(), "count": r.count} for r in results]
+    # --- MODO DETALHAMENTO (Tabelas) ---
+    if scope == "sessions":
+        sessions = db.query(UserSession).filter(
+            UserSession.system == current_user.system,
+            UserSession.is_revoked == False,
+            UserSession.expires_at > func.now()
+        ).all()
+        return sessions
+
+    if scope == "logins":
+        yesterday = datetime.utcnow() - timedelta(hours=24)
+        logins = db.query(UserInteraction).filter(
+            UserInteraction.system == current_user.system,
+            UserInteraction.action == "login",
+            UserInteraction.created_at >= yesterday
+        ).order_by(UserInteraction.created_at.desc()).limit(100).all()
+        # Enriquecimento simples para a tabela
+        return [{"username": l.payload.get("email") if l.payload else "N/A", "ip": "Internal", "status": "Sucesso", "created_at": l.created_at} for l in logins]
+
+    if scope == "attacks":
+        attacks = db.query(UserInteraction).filter(
+            UserInteraction.system == current_user.system,
+            UserInteraction.action == "login_failure"
+        ).order_by(UserInteraction.created_at.desc()).limit(100).all()
+        return [{"ip": "Detected", "reason": l.payload.get("reason", "Senha Incorreta"), "created_at": l.created_at} for l in attacks]
+
+    # --- MODO AGREGADO (Cards STATS) ---
+    yesterday = datetime.utcnow() - timedelta(hours=24)
+    total_logins = db.query(UserInteraction).filter(
+        UserInteraction.system == current_user.system,
+        UserInteraction.action == "login",
+        UserInteraction.created_at >= yesterday
+    ).count()
+
+    active_sessions = db.query(UserSession).filter(
+        UserSession.system == current_user.system,
+        UserSession.is_revoked == False,
+        UserSession.expires_at > func.now()
+    ).count()
+
+    blocked_attempts = db.query(UserInteraction).filter(
+        UserInteraction.system == current_user.system,
+        UserInteraction.action == "login_failure"
+    ).count()
+
+    return {
+        "total_logins": total_logins,
+        "active_sessions": active_sessions,
+        "blocked_attempts": blocked_attempts
+    }
 
 @router.get("/roles", response_model=List[RoleResponse])
 def list_roles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Lista todos os papéis disponíveis para gestão (Com enriquecimento de tags)."""
+    # [CAPABILITY RBAC] Requer permissão de visualização de matriz
     is_test_user = current_user.username.lower() == "master" or current_user.email.lower() == "master@seed.com"
-    is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
-    
-    if not (is_master or is_test_user):
-        raise HTTPException(status_code=403, detail="Acesso negado: Requer nível MASTER")
+    if not (auth_service.has_permission(current_user, "rbac:view") or is_test_user):
+        raise HTTPException(status_code=403, detail="Acesso negado: Requer permissão 'rbac:view'")
 
     roles = db.query(Role).filter(Role.system == current_user.system).options(joinedload(Role.permissions)).all()
     
-    # Enriquecimento de tags para o componente MANAGEMENT_GRID
+    # Enriquecimento de tags e nomes para o componente MANAGEMENT_GRID
     for role in roles:
         role.permission_tags = [
             {"label": p.name, "color": "emerald" if "manage" in p.name else "blue"} 
             for p in role.permissions
         ]
+        # role.permission_names é uma @property no modelo Role, não precisa (nem pode) ser setada manualmente
         
     return roles
 
 @router.post("/roles")
-def create_role(name: str, permissions: List[str], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Cria ou atualiza um papel e suas permissões."""
-    is_test_user = current_user.username.lower() == "teste" or current_user.email.lower() == "teste@sarak.com"
-    if current_user.is_superuser or is_test_user:
-        return auth_service.update_or_create_role(db, name, current_user.system, permissions)
-    raise HTTPException(status_code=403, detail="Acesso negado")
+def create_role(data: RoleCreateUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Cria ou atualiza um papel e suas permissões via JSON (v8.1)."""
+    # [PROTEÇÃO] Apenas usuários com alto privilégio ou conta de teste autorizada
+    is_test_user = current_user.username.lower() == "master" or current_user.email.lower() == "master@seed.com"
+    is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
+    
+    if is_master or is_test_user:
+        return auth_service.update_or_create_role(
+            db, 
+            name=data.name, 
+            system=current_user.system, 
+            permissions=data.permission_names,
+            level=data.level,
+            description=data.description
+        )
+    raise HTTPException(status_code=403, detail="Acesso negado: Apenas nível MASTER pode alterar a matriz RBAC")
 
 @router.put("/users/{user_id}/roles")
 def assign_role(user_id: uuid.UUID, role_names: List[str], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -447,11 +532,13 @@ def assign_role(user_id: uuid.UUID, role_names: List[str], db: Session = Depends
 
 @router.get("/permissions")
 def list_permissions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Lista todas as permissões técnicas (Visão Global para MASTER)."""
-    is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
-    
+    """Lista todas as permissões técnicas (v8.1)."""
+    if not auth_service.has_permission(current_user, "rbac:view"):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+        
     query = db.query(Permission)
-    if not is_master:
+    # Se não for Master/rbac:manage, vê apenas o próprio sistema
+    if not auth_service.has_permission(current_user, "rbac:manage"):
         query = query.filter(Permission.system == current_user.system)
         
     return query.all()
@@ -695,7 +782,7 @@ async def oauth_callback(
             raise HTTPException(status_code=400, detail="Failed to retrieve access token from provider")
 
         # 2. Busca do Perfil Real (Sovereign Data Extraction)
-        email, name, oauth_id = None, None, None
+        email, name, oauth_id, avatar_url = None, None, None, None
         
         async with httpx.AsyncClient() as h_client:
             if provider == "google":
@@ -707,6 +794,7 @@ async def oauth_callback(
                 email = profile.get("email")
                 name = profile.get("name", email.split("@")[0] if email else "Google User")
                 oauth_id = profile.get("id")
+                avatar_url = profile.get("picture")
                 
             elif provider == "github":
                 resp = await h_client.get(
@@ -716,6 +804,7 @@ async def oauth_callback(
                 profile = resp.json()
                 oauth_id = str(profile.get("id"))
                 name = profile.get("name") or profile.get("login")
+                avatar_url = profile.get("avatar_url")
                 
                 # GitHub pode esconder o e-mail; buscamos via API de e-mails se necessário
                 email = profile.get("email")
@@ -740,7 +829,9 @@ async def oauth_callback(
             oauth_id=oauth_id,
             email=email,
             username=name,
-            system=state
+            full_name=name,
+            system=state,
+            avatar_url=avatar_url
         )
         
         # 4. Emissão de Tokens Sarak (Access & Refresh)
@@ -804,12 +895,28 @@ def get_preferences(current_user: User = Depends(get_current_user)):
 
 @router.api_route("/preferences", methods=["PUT", "PATCH"])
 def update_preferences(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Atualiza as preferências do usuário logado."""
-    # Aceita payload flexível vindo do SarakForm
+    """Atualiza as preferências e dados de perfil do usuário logado (v8.6)."""
+    # 1. Atualização de Preferências (JSONB)
     current_prefs = current_user.preferences or {}
-    current_prefs.update(data)
+    
+    # Lista de campos que são colunas reais e não preferências JSON
+    profile_fields = [
+        "full_name", "address_street", "address_number", 
+        "address_complement", "address_city", "address_state", 
+        "address_zip", "address_country"
+    ]
+    
+    for key, value in data.items():
+        if key in profile_fields:
+            # Atualiza coluna direta no modelo User
+            setattr(current_user, key, value)
+        else:
+            # Atualiza dentro do JSON de preferências
+            current_prefs[key] = value
+            
     current_user.preferences = current_prefs
     db.commit()
+    db.refresh(current_user)
     return current_user.preferences
 
 @router.get("/change-password")
