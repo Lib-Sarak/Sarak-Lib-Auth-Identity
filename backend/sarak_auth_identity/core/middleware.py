@@ -26,10 +26,17 @@ async def identity_middleware(request: Request, call_next):
         "/refresh",
         "/catalog/models", 
         "/catalog/status",
-        "/discovery",
+        "/discover",
+        "/orchestrator/discover",
+        "/orchestrator/usage",
+        "/orchestrator/keys",
+        "/orchestrator/stream",
+        "/selector/recommend",
+        "/selector/routes",
         "/ui/modules",
         "/translator-google/languages/active",
         "/llm-test-chat/models",
+        "/llm-test-chat/orchestrate",
         "/docs", 
         "/openapi.json"
     ]
