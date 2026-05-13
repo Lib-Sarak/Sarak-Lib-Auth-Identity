@@ -54,6 +54,8 @@ export const AuthModuleManifest: {
       "mfa_orch": "/",
       "change_password": "/change-password",
       "preferences": "/preferences",
+      "password_reset_request": "/password-reset/request",
+      "password_reset_confirm": "/password-reset/confirm",
       "oauth_login": "/oauth/{provider}/login",
       "oauth_callback": "/oauth/{provider}/callback"
     }
@@ -74,6 +76,10 @@ export const AuthModuleManifest: {
       "rateLimit": {
         "handleStatus": 429,
         "message": "Muitas tentativas. Tente novamente mais tarde."
+      },
+      "policy": {
+        "idleTimeoutMinutes": 60,
+        "refreshTokenDays": 1
       }
     }
   },

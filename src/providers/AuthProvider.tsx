@@ -36,7 +36,10 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
         localStorage.removeItem(`${system}_token`);
         localStorage.removeItem(`${system}_refresh_token`);
         localStorage.removeItem(`${system}_user`);
-        window.location.href = '/login';
+        
+        // Redirecionamento inteligente: prioriza a raiz do sistema atual (v8.2)
+        const loginPath = (window as any).__SARAK_LOGIN_PATH__ || '/login';
+        window.location.href = loginPath;
     }, [system]);
 
     const login = async (identification: string, password?: string) => {
@@ -165,26 +168,20 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
                     setUser(profile);
                     localStorage.setItem(`${system}_user`, JSON.stringify(profile));
                 } catch (error: any) {
-                    // Silenciamos o erro se for apenas um token expirado ou inválido (v7.2)
-                    if (error.response?.status !== 401 && error.response?.status !== 403) {
-                        console.error("Failed to fetch user profile", error);
-                    }
-                    
-                    // Se o token falhou, removemos ele para evitar loops de 401
-                    if (error.response?.status === 401) {
-                        localStorage.removeItem(`${system}_token`);
-                    }
+                    const status = error.response?.status;
+                    console.warn(`[AuthProvider] Falha na validação da sessão (Status: ${status || 'Network Error'})`);
 
-                    const storedUser = localStorage.getItem(`${system}_user`);
-                    if (storedUser && storedUser !== 'undefined') {
-                        setUser(JSON.parse(storedUser));
-                    }
+                    // Se falhou (401, 403 ou erro de rede ao validar), limpamos a sessão para segurança
+                    localStorage.removeItem(`${system}_token`);
+                    localStorage.removeItem(`${system}_refresh_token`);
+                    localStorage.removeItem(`${system}_user`);
+                    setUser(null);
+                    setToken(null);
                 }
             } else {
-                const storedUser = localStorage.getItem(`${system}_user`);
-                if (storedUser && storedUser !== 'undefined') {
-                    setUser(JSON.parse(storedUser));
-                }
+                // Se não há token, garantimos que não haja usuário (v8.3)
+                setUser(null);
+                localStorage.removeItem(`${system}_user`);
             }
             
             setIsHydrated(true);
@@ -193,6 +190,44 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
 
         hydrate();
     }, [system]);
+
+    // --- Idle Timeout Logic (v10.5) ---
+    useEffect(() => {
+        // Só monitoramos se o usuário estiver logado e hidratado
+        if (!user || !token || !isHydrated) return;
+
+        let idleTimer: NodeJS.Timeout;
+        // Padrão: 60 minutos (pode ser expandido para ler do manifest no futuro)
+        const IDLE_TIME_LIMIT = 60 * 60 * 1000; 
+
+        const resetTimer = () => {
+            if (idleTimer) clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+                console.warn('[AuthProvider] Sessão encerrada por inatividade (1h)');
+                logout();
+            }, IDLE_TIME_LIMIT);
+        };
+
+        // Eventos que indicam atividade humana real
+        const activityEvents = [
+            'mousedown', 'mousemove', 'keypress', 
+            'scroll', 'touchstart', 'click'
+        ];
+        
+        activityEvents.forEach(event => 
+            window.addEventListener(event, resetTimer, { passive: true })
+        );
+
+        // Início imediato do timer ao logar/hidratar
+        resetTimer();
+
+        return () => {
+            if (idleTimer) clearTimeout(idleTimer);
+            activityEvents.forEach(event => 
+                window.removeEventListener(event, resetTimer)
+            );
+        };
+    }, [user, token, isHydrated, logout]);
 
     const value = useMemo(() => ({
         user,

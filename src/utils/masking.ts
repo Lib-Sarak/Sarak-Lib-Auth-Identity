@@ -21,6 +21,9 @@ export interface MaskedUser {
     email: string;
     system: string;
     roles?: string[];
+    is_superuser?: boolean;
+    is_active?: boolean;
+    permissions?: string[];
 }
 
 /**
@@ -35,7 +38,10 @@ export function maskUserData(user: RawUser): MaskedUser {
         username, 
         email, 
         system, 
-        roles 
+        roles,
+        is_superuser,
+        is_active,
+        permissions
     } = user;
 
     return {
@@ -43,6 +49,9 @@ export function maskUserData(user: RawUser): MaskedUser {
         username,
         email,
         system,
+        is_superuser: !!is_superuser,
+        is_active: !!is_active,
+        permissions: Array.isArray(permissions) ? permissions : [],
         roles: Array.isArray(roles) ? roles.map(r => typeof r === 'string' ? r : r.name) : []
     };
 }

@@ -125,7 +125,7 @@ export const AuthFlowService = {
 
     register: async (email: string, password: string, system: string) => {
         try {
-            await authApi.post('/register', { 
+            await authApi.post(manifest.endpoints.v1.register, { 
                 username: email, 
                 email: email, 
                 password,
@@ -145,7 +145,7 @@ export const AuthFlowService = {
 
     requestPasswordReset: async (email: string, system: string) => {
         try {
-            await authApi.post('/password-reset/request', { email, system });
+            await authApi.post(manifest.endpoints.v1.password_reset_request, { email, system });
             return { success: true };
         } catch (error: any) {
             return { success: false, error: formatError(error) };
@@ -154,7 +154,7 @@ export const AuthFlowService = {
 
     confirmPasswordReset: async (token: string, newPassword: string, system: string) => {
         try {
-            await authApi.post('/password-reset/confirm', { token, new_password: newPassword, system });
+            await authApi.post(manifest.endpoints.v1.password_reset_confirm, { token, new_password: newPassword, system });
             return { success: true };
         } catch (error: any) {
             return { success: false, error: formatError(error) };
@@ -163,7 +163,8 @@ export const AuthFlowService = {
 
     getOAuthLoginUrl: async (provider: string, system: string) => {
         try {
-            const response = await authApi.get(`/oauth/${provider}/login`, { params: { system } });
+            const endpoint = manifest.endpoints.v1.oauth_login.replace('{provider}', provider);
+            const response = await authApi.get(endpoint, { params: { system } });
             return { success: true, url: response.data.url };
         } catch (error: any) {
             return { success: false, error: formatError(error) };
@@ -172,7 +173,8 @@ export const AuthFlowService = {
 
     processOAuthCallback: async (provider: string, code: string, system: string) => {
         try {
-            const response = await authApi.post(`/oauth/${provider}/callback`, { code, system });
+            const endpoint = manifest.endpoints.v1.oauth_callback.replace('{provider}', provider);
+            const response = await authApi.post(endpoint, { code, system });
             return { 
                 success: true, 
                 token: response.data.access_token,

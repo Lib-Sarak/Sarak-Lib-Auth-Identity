@@ -75,7 +75,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 def create_refresh_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=30)  # Refresh token valid for 30 days
+    expire = datetime.utcnow() + timedelta(days=1)  # Refresh token valid for 1 day
     to_encode.update({"exp": expire, "type": "refresh"})
     
     current_key = get_secret_key()

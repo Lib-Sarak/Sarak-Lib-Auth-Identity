@@ -20,11 +20,8 @@ export const SecurityModule: React.FC = () => {
         return AuthModuleManifest.visualContracts.filter(contract => {
             if (!contract.requiredPermission) return true;
             
-            const isMaster = user?.username?.toLowerCase() === 'master' || 
-                           user?.email?.toLowerCase().includes('master@') ||
-                           user?.is_superuser === true;
-
-            if (user?.is_active && isMaster) return true;
+            // Lógica Soberana: Superuser tem acesso total, outros dependem de permissões explícitas.
+            if (user?.is_active && user?.is_superuser) return true;
 
             return user?.permissions?.includes(contract.requiredPermission);
         });
