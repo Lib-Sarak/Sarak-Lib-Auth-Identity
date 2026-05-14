@@ -97,7 +97,6 @@ class PermissionResponse(BaseModel):
 class RoleResponse(BaseModel):
     role_id: uuid.UUID
     name: str
-    level: int = 10
     description: Optional[str] = None
     is_active: bool = True
     permission_names: List[str] = []
@@ -169,7 +168,6 @@ class ChangePasswordRequest(BaseModel):
 
 class RoleCreateUpdate(BaseModel):
     name: str
-    level: int = 10
     description: Optional[str] = None
     permission_names: List[str] = []
 
@@ -183,18 +181,6 @@ class UserRoleUpdate(BaseModel):
 
 # --- Security Dependencies ---
 
-class RoleChecker:
-    """Dependency to check minimum role level (v7.6)."""
-    def __init__(self, min_level: int):
-        self.min_level = min_level
-
-    def __call__(self, current_user: User = Depends(get_current_user)):
-        if not auth_service.can_access_level(current_user, self.min_level):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, 
-                detail=f"Access denied. Minimum level required: {self.min_level}"
-            )
-        return current_user
 
 # --- Endpoints ---
 
@@ -243,14 +229,12 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
             "user": {"email": user.email, "system": user.system}
         }
 
+    # Include system and roles in JWT for Sovereign RLS and Hierarchy
     user_id_str = str(user.user_id)
-    user_level = auth_service.get_user_max_level(user)
-    
-    # Include system and level in JWT for Sovereign RLS and Hierarchy
     token_data = {
         "sub": user_id_str, 
         "system": data.system,
-        "level": user_level,
+        "is_superuser": user.is_superuser,
         "roles": [r.name for r in user.roles]
     }
     
@@ -275,8 +259,7 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
         "user_id": user_id_str,
         "username": user.username,
         "email": user.email,
-        "system": user.system,
-        "level": user_level
+        "system": user.system
     }
     
     return {
@@ -304,13 +287,13 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=401, detail="Session revoked or not found")
     
-    user = db.query(User).filter(User.user_id == session.user_id).first()
-    user_level = auth_service.get_user_max_level(user) if user else 10
-
+    user_id = session.user_id
+    user = db.query(User).filter(User.user_id == user_id).first()
+    
     new_access_token = auth_service.create_access_token(data={
-        "sub": user_id, 
+        "sub": str(user_id), 
         "system": session.system,
-        "level": user_level,
+        "is_superuser": user.is_superuser if user else False,
         "roles": [r.name for r in user.roles] if user else []
     })
     return {"access_token": new_access_token, "token_type": "bearer"}
@@ -539,7 +522,6 @@ def list_roles(db: Session = Depends(get_db), current_user: User = Depends(get_c
         roles_data.append({
             "role_id": str(role.role_id),
             "name": role.name,
-            "level": role.level,
             "description": role.description,
             "is_active": True, # Roles seedadas são sempre ativas por padrão
             "permission_names": role.permission_names,
@@ -564,7 +546,6 @@ def create_role(data: RoleCreateUpdate, db: Session = Depends(get_db), current_u
             name=data.name, 
             system=current_user.system, 
             permissions=data.permission_names,
-            level=data.level,
             description=data.description
         )
     raise HTTPException(status_code=403, detail="Acesso negado: Apenas nível MASTER pode alterar a matriz RBAC")
@@ -739,11 +720,10 @@ def login_mfa(request: Request, data: MFALoginRequest, db: Session = Depends(get
     
     # Success: Issue full tokens
     user_id_str = str(user.user_id)
-    user_level = auth_service.get_user_max_level(user)
     token_data = {
         "sub": user_id_str, 
         "system": system,
-        "level": user_level,
+        "is_superuser": user.is_superuser,
         "roles": [r.name for r in user.roles]
     }
     
@@ -903,11 +883,10 @@ async def oauth_callback(
         
         # 4. Emissão de Tokens Sarak (Access & Refresh)
         user_id_str = str(user.user_id)
-        user_level = auth_service.get_user_max_level(user)
         token_data = {
             "sub": user_id_str, 
             "system": state,
-            "level": user_level,
+            "is_superuser": user.is_superuser,
             "roles": [r.name for r in user.roles]
         }
         

@@ -216,17 +216,6 @@ def has_permission(user: User, permission_name: str, resource: str = "all", acti
     
     return enforcer.enforce(str(user.user_id), user.system, resource, permission_name)
 
-def get_user_max_level(user: User) -> int:
-    """Calcula o nÃ­vel mÃ¡ximo de acesso do usuÃ¡rio baseado em suas roles (v7.6)."""
-    if user.is_superuser:
-        return 100
-    if not user.roles:
-        return 10
-    return max([role.level for role in user.roles])
-
-def can_access_level(user: User, required_level: int) -> bool:
-    """Verifica se o usuÃ¡rio possui nÃ­vel igual ou superior ao exigido."""
-    return get_user_max_level(user) >= required_level
 
 def permission_required(permission_name: str):
     """FastAPI Dependency for granular RBAC"""
@@ -342,14 +331,13 @@ async def get_current_user(
 
 # --- RBAC Management (v6.8) ---
 
-def update_or_create_role(db: Session, name: str, system: str, permissions: List[str], level: int = 10, description: str = None):
+def update_or_create_role(db: Session, name: str, system: str, permissions: List[str], description: str = None):
     from .models import Role, Permission
     role = db.query(Role).filter(Role.name == name, Role.system == system).first()
     if not role:
         role = Role(
             name=name, 
             system=system, 
-            level=level,
             description=description or f"Custom role: {name} for {system}"
         )
         db.add(role)
@@ -357,7 +345,6 @@ def update_or_create_role(db: Session, name: str, system: str, permissions: List
         db.refresh(role)
     else:
         # Atualiza metadados do papel (v8.1)
-        role.level = level
         if description:
             role.description = description
     
@@ -475,23 +462,7 @@ def process_oauth_user(db: Session, provider: str, oauth_id: str, email: str, us
 
 # --- Governance & RBAC Levels (v7.6) ---
 
-def can_access_level(user: User, required_level: int) -> bool:
-    """
-    Verifica se o usuÃ¡rio possui nÃ­vel de poder suficiente (Hierarquia Sarak).
-    MASTER (100) > ADMIN (50) > USER (10)
-    """
-    if not user or not user.is_active:
-        return False
-        
-    if user.is_superuser:
-        return True
-        
-    # ObtÃ©m o maior nÃ­vel entre todas as roles do usuÃ¡rio
-    max_level = 0
-    if user.roles:
-        max_level = max([role.level for role in user.roles])
-        
-    return max_level >= required_level
+
 def change_password(db: Session, user: User, current_password: str, new_password: str) -> bool:
     """Valida a senha atual e define a nova senha (v8.0)."""
     if not verify_password(current_password, user.password):

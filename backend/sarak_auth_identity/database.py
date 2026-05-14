@@ -31,7 +31,7 @@ def get_auth_schema():
 
 # Local contexts for middleware compatibility
 identity_context = contextvars.ContextVar("identity_context", default=None)
-level_context = contextvars.ContextVar("level_context", default=10) # 10: USER default
+is_superuser_context = contextvars.ContextVar("is_superuser_context", default=False)
 tenant_context = contextvars.ContextVar("tenant_context", default="public")
 
 

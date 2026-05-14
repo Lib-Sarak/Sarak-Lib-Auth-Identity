@@ -1,7 +1,7 @@
 from sqlalchemy import event, select, literal
 from sqlalchemy.orm import Session, with_loader_criteria
 from .models import UserInteraction, UserSession
-from sarak_auth_identity.database import identity_context, level_context
+from sarak_auth_identity.database import identity_context, is_superuser_context
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,12 +18,12 @@ def setup_sovereign_isolation():
         Intercepts ORM execution and applies identity filtering criteria.
         """
         uid = identity_context.get()
-        level = level_context.get()
+        is_superuser = is_superuser_context.get()
         
-        # Bypass for MASTER (100+), internal tasks, or if no identity is set
-        if not uid or uid == "system" or (level and level >= 100):
-            if level and level >= 100:
-                logger.debug(f" [Isolation] MASTER bypass active for UID: {uid}")
+        # Bypass for MASTER (is_superuser), internal tasks, or if no identity is set
+        if not uid or uid == "system" or is_superuser:
+            if is_superuser:
+                logger.debug(f" [Isolation] MASTER/Superuser bypass active for UID: {uid}")
             return
 
         # We only apply filters to SELECT statements that are not internal loads

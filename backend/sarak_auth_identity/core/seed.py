@@ -50,11 +50,11 @@ def seed_auth_identity(engine: Engine):
 
         # Definição de Papéis
         roles_config = [
-            {"name": "MASTER", "level": 100, "description": "Controle total", "perms": [p["name"] for p in permissions_data]},
-            {"name": "ADMIN", "level": 50, "description": "Gestão operacional", "perms": ["identity:view", "user:manage", "audit:view"]},
-            {"name": "EDITOR", "level": 30, "description": "Gestão técnica", "perms": ["identity:view", "content:manage", "service:edit"]},
-            {"name": "LEITOR", "level": 20, "description": "Visualização", "perms": ["audit:view", "rbac:view", "identity:view"]},
-            {"name": "USER", "level": 10, "description": "Consumidor final", "perms": ["service:execute"]}
+            {"name": "MASTER", "description": "Controle total", "perms": [p["name"] for p in permissions_data]},
+            {"name": "ADMIN", "description": "Gestão operacional", "perms": ["identity:view", "user:manage", "audit:view"]},
+            {"name": "EDITOR", "description": "Gestão técnica", "perms": ["identity:view", "content:manage", "service:edit"]},
+            {"name": "LEITOR", "description": "Visualização", "perms": ["audit:view", "rbac:view", "identity:view"]},
+            {"name": "USER", "description": "Consumidor final", "perms": ["service:execute"]}
         ]
 
         # Definição de Usuários Master
@@ -88,12 +88,9 @@ def seed_auth_identity(engine: Engine):
                     Role.system == sys_name
                 ).first()
                 if not r:
-                    r = Role(name=r_config["name"], level=r_config["level"], description=r_config["description"], system=sys_name)
+                    r = Role(name=r_config["name"], description=r_config["description"], system=sys_name)
                     db.add(r)
                     db.flush()
-                else:
-                    # Update level if exists
-                    r.level = r_config["level"]
                 
                 # Sync Permissions to Role
                 r.permissions = [perms_map[p_name] for p_name in r_config["perms"]]

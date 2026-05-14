@@ -112,7 +112,7 @@ export const SecurityModule: React.FC = () => {
                     ) : (
                         <div className="flex flex-col items-center justify-center py-20 text-white/10 opacity-50">
                             <Shield size={48} strokeWidth={1} className="mb-4" />
-                            <p className="text-xs uppercase tracking-widest font-bold">Nenhum contrato visual disponível para este nível de acesso.</p>
+                            <p className="text-xs uppercase tracking-widest font-bold">Nenhum contrato visual disponível para este perfil de acesso.</p>
                         </div>
                     )}
                 </div>

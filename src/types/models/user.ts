@@ -20,11 +20,4 @@ export interface UserProfile {
     last_login?: string;
 }
 
-export enum RoleLevel {
-    MASTER = 100,
-    ADMIN = 50,
-    EDITOR = 30,
-    LEITOR = 20,
-    USER = 10,
-    ANONYMOUS = 0
-}
+

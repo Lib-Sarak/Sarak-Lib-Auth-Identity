@@ -64,13 +64,6 @@ export const AuthModuleManifest: {
   },
   "capabilities": {
     "security": {
-      "levels": [
-        { "id": 10, "label": "USER", "color": "blue" },
-        { "id": 20, "label": "LEITOR", "color": "cyan" },
-        { "id": 30, "label": "EDITOR", "color": "emerald" },
-        { "id": 50, "label": "ADMIN", "color": "purple" },
-        { "id": 100, "label": "MASTER", "color": "gold" }
-      ],
       "mfa": { "challengeStatus": "MFA_REQUIRED" },
       "oauth": {
         "enabled": true,
@@ -177,12 +170,12 @@ export const AuthModuleManifest: {
         "actions": [
           { 
             "id": "promote", 
-            "label": "Ajustar Nível", 
+            "label": "Ajustar Papel", 
             "endpoint": "v1.user_role", 
             "method": "PATCH",
             "form": {
               "fields": [
-                { "name": "role_id", "label": "Novo Papel/Nível", "type": "SELECT", "source": "v1.roles" }
+                { "name": "role_id", "label": "Novo Papel", "type": "SELECT", "source": "v1.roles" }
               ]
             }
           },
@@ -193,37 +186,27 @@ export const AuthModuleManifest: {
       "mapping": {
         "username": "Identidade",
         "email": "E-mail Principal",
-        "role_names": "Nível / Papel",
+        "role_names": "Papel",
         "is_active": "Acesso"
       }
     },
     {
       "id": "rbac_matrix_grid",
       "type": "MANAGEMENT_GRID",
-      "label": "Matriz de Papéis e Níveis",
+      "label": "Matriz de Papéis Soberanos",
       "tab": "Governança",
       "endpoint": "v1.roles",
       "requiredPermission": "rbac:manage",
-      "groupBy": "level",
-      "ghostGroups": [
-        { "id": 10, "label": "USUÁRIOS", "name": "USUÁRIOS" },
-        { "id": 20, "label": "LEITORES", "name": "LEITORES" },
-        { "id": 30, "label": "EDITORES", "name": "EDITORES" },
-        { "id": 50, "label": "ADMINISTRADORES", "name": "ADMINISTRADORES" },
-        { "id": 100, "label": "SUPREMO (MASTER)", "name": "SUPREMO (MASTER)" }
-      ],
       "actions": [],
       "mapping": {
         "id": "id",
         "title": "name",
-        "level": "level",
         "description": "description",
         "tags": "permission_tags",
         "isActive": "is_active"
       },
       "formMapping": {
         "name": "Nome do Papel",
-        "level": "Nível Hierárquico (10-100)",
         "description": "Finalidade do Papel",
         "permission_names": "Regras Aplicadas"
       },

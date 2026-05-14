@@ -53,7 +53,6 @@ class Role(Base):
     role_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(50), nullable=False, index=True)
     system = Column(String(50), nullable=False, index=True)
-    level = Column(Integer, default=10, nullable=False) # 100: MASTER, 50: ADMIN, 10: USER
     description = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
