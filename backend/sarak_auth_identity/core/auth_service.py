@@ -26,13 +26,12 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Identity JWT configuration (v5.1)
 # Strictly enforced ENV-only configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+SECRET_KEY = settings.JWT_SECRET_KEY
+ALGORITHM = settings.ALGORITHM
 
 if not SECRET_KEY:
     raise RuntimeError("[FATAL] JWT_SECRET_KEY not found in environment variables. Sarak security requires explicit secrets management.")
 
-ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Security Standard: 30 minutes
 
 # --- Password Utilities ---
@@ -59,7 +58,7 @@ def get_password_hash(password: str) -> str:
 
 def get_secret_key() -> str:
     """Returns the secret key from environment with mandatory check."""
-    key = os.getenv("JWT_SECRET_KEY")
+    key = settings.JWT_SECRET_KEY
     if not key:
         raise RuntimeError("JWT_SECRET_KEY is required but not set.")
     return key.strip()
@@ -84,8 +83,8 @@ def create_refresh_token(data: dict):
 
 def verify_token(token: str) -> Optional[dict]:
     try:
-        current_key = get_secret_key()
-        payload = jwt.decode(token, current_key, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
         return payload
     except JWTError:
         return None
@@ -175,16 +174,47 @@ def is_session_valid(db: Session, user_id: str, system: str) -> bool:
 
 # --- RBAC Utilities ---
 
-def has_permission(user: User, permission_name: str) -> bool:
-    """Verifica permissÃµes granulares (v5.5)."""
+# --- Casbin Enforcer (v9.0) ---
+
+_enforcer = None
+
+def get_enforcer(db: Session = None):
+    """
+    Inicializa o Enforcer do Casbin com o adaptador SQLAlchemy.
+    """
+    global _enforcer
+    if _enforcer:
+        return _enforcer
+    
+    import casbin
+    from casbin_sqlalchemy_adapter import Adapter
+    
+    # Modelo local do Sarak
+    model_path = os.path.join(os.path.dirname(__file__), "authz_policy.conf")
+    
+    # O adaptador precisa de uma URL de conexão. Usamos a mesma do módulo.
+    from ..database import DATABASE_URL
+    adapter = Adapter(DATABASE_URL)
+    
+    _enforcer = casbin.Enforcer(model_path, adapter)
+    return _enforcer
+
+def has_permission(user: User, permission_name: str, resource: str = "all", action: str = "access") -> bool:
+    """
+    Verifica permissões usando o motor Casbin (v9.0).
+    sub: user.user_id ou user.email
+    dom: user.system
+    obj: resource
+    act: action
+    """
     if user.is_superuser:
         return True
     
-    for role in user.roles:
-        for perm in role.permissions:
-            if perm.name == permission_name:
-                return True
-    return False
+    enforcer = get_enforcer()
+    # Carregamos as políticas do banco para garantir que estão atualizadas
+    enforcer.load_policy()
+    
+    return enforcer.enforce(str(user.user_id), user.system, resource, permission_name)
 
 def get_user_max_level(user: User) -> int:
     """Calcula o nÃ­vel mÃ¡ximo de acesso do usuÃ¡rio baseado em suas roles (v7.6)."""
@@ -204,7 +234,7 @@ def permission_required(permission_name: str):
         if not has_permission(current_user, permission_name):
             logger.warning(f" [RBAC] Access denied for user {current_user.email} on '{permission_name}'")
             raise HTTPException(
-                status_code=status.HTTP_403_FOR_ALLOWED,
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"SovereignAuth: Missing permission '{permission_name}'"
             )
         return current_user

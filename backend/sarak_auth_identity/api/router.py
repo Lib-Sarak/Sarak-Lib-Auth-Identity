@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 from ..core import auth_service
 from ..core.models import User, UserSession, UserInteraction, Role, Permission
-from ..database import get_db, engine, setup_identity_db
+from ..database import get_db, engine
 from ..core.seed import seed_auth_identity
 from ..core.interaction_service import InteractionService
 from .limiter import limiter
@@ -38,17 +38,14 @@ _boot_completed = False
 
 @router.on_event("startup")
 def sovereign_boot():
-    """Sovereign initialization of the Auth-Identity module (v6.8)"""
+    """Sovereign initialization of the Auth-Identity module (v9.0)"""
     global _boot_completed
     if _boot_completed:
         return
         
-    logger.info(" [Sovereign Identity] Initializing module: Auth-Identity (v6.8)")
+    logger.info(" [Sovereign Identity] Initializing module: Auth-Identity (v9.0)")
     
-    # 1. Setup DB (Schema + Tables)
-    setup_identity_db(engine)
-    
-    # 2. Seed
+    # 1. Seed (Idempotent sync of roles and policies)
     seed_auth_identity(engine)
     
     _boot_completed = True
@@ -175,6 +172,14 @@ class RoleCreateUpdate(BaseModel):
     level: int = 10
     description: Optional[str] = None
     permission_names: List[str] = []
+
+class PermissionCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class UserRoleUpdate(BaseModel):
+    role_id: Optional[uuid.UUID] = None
+    role_name: Optional[str] = None
 
 # --- Security Dependencies ---
 
@@ -334,6 +339,9 @@ def register(request: Request, user_in: UserCreate, db: Session = Depends(get_db
 def get_me(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Flatten permissions for the frontend
     all_permissions = set()
+    if current_user.is_superuser:
+        all_permissions.add('*')
+    
     for role in current_user.roles:
         for perm in role.permissions:
             all_permissions.add(perm.name)
@@ -365,11 +373,6 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(get_c
     if not has_access:
         raise HTTPException(status_code=403, detail="Acesso negado: Requer permissão de visualização de identidades")
     
-    # Log de Auditoria Global (Apenas terminal)
-    all_users = db.query(User).all()
-    logger.info(f" [RBAC-Infra] Database URL: {engine.url.render_as_string(hide_password=True)}")
-    logger.info(f" [RBAC-Global] Total users in DB: {len(all_users)} | Emails: {[u.email for u in all_users]}")
-
     # [Higiene Sarak] MASTER vê tudo, ADMIN vê apenas o próprio sistema
     query = db.query(User).options(selectinload(User.roles))
     
@@ -397,7 +400,7 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(get_c
     return users
 
 @router.patch("/users/{user_id}/role")
-def update_user_role(user_id: uuid.UUID, role_name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_user_role(user_id: uuid.UUID, data: UserRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Altera o papel de um usuário (Com travas de hierarquia Master)."""
     target_user = db.query(User).filter(User.user_id == user_id).first()
     if not target_user:
@@ -414,14 +417,42 @@ def update_user_role(user_id: uuid.UUID, role_name: str, db: Session = Depends(g
     if is_target_master and not is_current_can_rbac:
         logger.warning(f" [SECURITY] Tentativa de alteração de Master {target_user.email} por {current_user.email}")
         raise HTTPException(status_code=403, detail="Ação proibida: Nível de acesso insuficiente para alterar MASTER")
-        
-    new_role = db.query(Role).filter(Role.name == role_name).first()
+    
+    # Busca o papel por ID ou Nome
+    query = db.query(Role)
+    if data.role_id:
+        new_role = query.filter(Role.role_id == data.role_id).first()
+    elif data.role_name:
+        new_role = query.filter(Role.name == data.role_name).first()
+    else:
+        raise HTTPException(status_code=400, detail="role_id ou role_name é obrigatório")
+
     if not new_role:
         raise HTTPException(status_code=404, detail="Papel não encontrado")
         
     target_user.roles = [new_role]
     db.commit()
-    return {"message": "Papel atualizado com sucesso", "user": target_user.email, "role": role_name}
+    return {"message": "Papel atualizado com sucesso", "user": target_user.email, "role": new_role.name}
+
+@router.delete("/users/{user_id}")
+def deactivate_user(user_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Desativa um usuário (Soft Delete Soberano)."""
+    if not auth_service.has_permission(current_user, "user:manage"):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+        
+    target_user = db.query(User).filter(User.user_id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    
+    # Proteção: Não é possível deletar a si mesmo ou um MASTER se não for MASTER
+    if target_user.user_id == current_user.user_id:
+        raise HTTPException(status_code=400, detail="Você não pode desativar sua própria conta")
+        
+    target_user.is_active = False
+    db.commit()
+    
+    InteractionService.log_security_event(db, current_user.user_id, current_user.system, "USER_DEACTIVATED", {"target": str(user_id)})
+    return {"status": "success", "message": "Usuário desativado com sucesso"}
 
 @router.get("/interactions")
 def get_interactions(
@@ -441,7 +472,16 @@ def get_interactions(
             UserSession.is_revoked == False,
             UserSession.expires_at > func.now()
         ).all()
-        return sessions
+        return [
+            {
+                "session_id": str(s.session_id),
+                "ip_address": s.ip_address,
+                "user_agent": s.user_agent,
+                "created_at": s.created_at,
+                "expires_at": s.expires_at,
+                "is_revoked": s.is_revoked
+            } for s in sessions
+        ]
 
     if scope == "logins":
         yesterday = datetime.utcnow() - timedelta(hours=24)
@@ -494,16 +534,22 @@ def list_roles(db: Session = Depends(get_db), current_user: User = Depends(get_c
         raise HTTPException(status_code=403, detail="Acesso negado: Requer permissão 'rbac:view'")
 
     roles = db.query(Role).filter(Role.system == current_user.system).options(joinedload(Role.permissions)).all()
-    
-    # Enriquecimento de tags e nomes para o componente MANAGEMENT_GRID
+    roles_data = []
     for role in roles:
-        role.permission_tags = [
-            {"label": p.name, "color": "emerald" if "manage" in p.name else "blue"} 
-            for p in role.permissions
-        ]
-        # role.permission_names é uma @property no modelo Role, não precisa (nem pode) ser setada manualmente
+        roles_data.append({
+            "role_id": str(role.role_id),
+            "name": role.name,
+            "level": role.level,
+            "description": role.description,
+            "is_active": True, # Roles seedadas são sempre ativas por padrão
+            "permission_names": role.permission_names,
+            "permission_tags": [
+                {"label": p.name, "color": "emerald" if "manage" in p.name else "blue"} 
+                for p in role.permissions
+            ]
+        })
         
-    return roles
+    return roles_data
 
 @router.post("/roles")
 def create_role(data: RoleCreateUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -532,16 +578,36 @@ def assign_role(user_id: uuid.UUID, role_names: List[str], db: Session = Depends
 
 @router.get("/permissions")
 def list_permissions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Lista todas as permissões técnicas (v8.1)."""
+    """Lista todas as permissões técnicas (v10.0)."""
     if not auth_service.has_permission(current_user, "rbac:view"):
         raise HTTPException(status_code=403, detail="Acesso negado")
         
     query = db.query(Permission)
-    # Se não for Master/rbac:manage, vê apenas o próprio sistema
     if not auth_service.has_permission(current_user, "rbac:manage"):
         query = query.filter(Permission.system == current_user.system)
-        
     return query.all()
+
+@router.post("/permissions")
+def create_permission(data: PermissionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Cria uma nova regra técnica de permissão (v10.0)."""
+    if not auth_service.has_permission(current_user, "rbac:manage"):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+        
+    # Verifica se já existe
+    existing = db.query(Permission).filter(Permission.name == data.name, Permission.system == current_user.system).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Esta regra já existe no sistema")
+        
+    new_perm = Permission(
+        permission_id=uuid.uuid4(),
+        name=data.name,
+        description=data.description,
+        system=current_user.system
+    )
+    db.add(new_perm)
+    db.commit()
+    db.refresh(new_perm)
+    return new_perm
 
 @router.post("/interactions")
 def log_user_interaction(
@@ -564,6 +630,7 @@ def log_user_interaction(
 async def get_mfa_status(current_user: User = Depends(get_current_user)):
     """Retorna o status atual do MFA para o usuário logado."""
     return {
+        "status": "ENABLED" if current_user.mfa_enabled else "DISABLED",
         "enabled": current_user.mfa_enabled,
         "method": "TOTP" if current_user.mfa_secret else None
     }
@@ -719,8 +786,8 @@ def request_reset(request: Request, data: PasswordResetRequest, db: Session = De
         InteractionService.log_security_event(db, user.user_id, data.system, "PASSWORD_RESET_REQUESTED")
         
         # Em um sistema real, aqui dispararíamos o e-mail.
-        # Por enquanto retornamos o token para facilitar o desenvolvimento/teste.
-        return {"message": "Reset token generated successfully", "token": token}
+        # O token não deve ser retornado na API para evitar interceptação (v9.0 Fix).
+        return {"message": "If the email exists, a reset link will be sent."}
     
     # Por segurança, não confirmamos se o e-mail existe
     return {"message": "If the email exists, a reset link will be sent."}
@@ -872,6 +939,14 @@ async def oauth_callback(
         logger.error(f" [OAuth-Error] Critical failure in {provider} callback: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
 
+@router.get("/oauth/status")
+def get_oauth_status():
+    """Retorna o status de configuração dos provedores OAuth (v8.5)."""
+    return [
+        {"title": "Google SSO", "status": "Ativo" if os.getenv("GOOGLE_CLIENT_ID") else "Pendente"},
+        {"title": "GitHub SSO", "status": "Ativo" if os.getenv("GITHUB_CLIENT_ID") else "Pendente"}
+    ]
+
 # --- Account Management Endpoints (v8.0) ---
 
 @router.post("/change-password")
@@ -888,9 +963,17 @@ def get_preferences(current_user: User = Depends(get_current_user)):
     # Retorna um objeto plano para o SarakForm mapear facilmente
     prefs = current_user.preferences or {}
     return {
+        "full_name": current_user.full_name or "",
         "language": prefs.get("language", "pt-BR"),
         "notifications": prefs.get("notifications", "S"),
-        "theme_preference": prefs.get("theme_preference", "glass")
+        "theme_preference": prefs.get("theme_preference", "glass"),
+        "address_street": current_user.address_street or "",
+        "address_number": current_user.address_number or "",
+        "address_complement": current_user.address_complement or "",
+        "address_city": current_user.address_city or "",
+        "address_state": current_user.address_state or "",
+        "address_zip": current_user.address_zip or "",
+        "address_country": current_user.address_country or "Brasil"
     }
 
 @router.api_route("/preferences", methods=["PUT", "PATCH"])

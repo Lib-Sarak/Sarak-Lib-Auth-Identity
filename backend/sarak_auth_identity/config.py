@@ -1,21 +1,33 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import os
 
-class Settings(BaseSettings):
+class AuthSettings(BaseSettings):
     """
-    Configurações base para o módulo de Identidade e Autenticação.
-    Pode ser estendido por cada microsserviço.
+    Configurações profissionais do módulo Sarak Identity (v9.0).
+    Utiliza Pydantic Settings para validação e fail-fast initialization.
     """
-    jwt_secret_key: Optional[str] = None
-    database_url: Optional[str] = None
     
-    class Config:
-        # Permite carregar do .env se presente na raiz do projeto executor
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        extra = "ignore"
+    # Database
+    DATABASE_URL: str = "sqlite:///./identity.db"
+    
+    # Security
+    JWT_SECRET_KEY: str  # Obrigatório (Fail-Fast)
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    
+    # Multi-tenancy / Defaults
+    DEFAULT_SYSTEM_ID: str = "SARAK_CORE"
+    
+    # OTP / 2FA
+    OTP_ISSUER_NAME: str = "Sarak Sovereign"
+    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
-# Instância global
-settings = Settings()
+# Instância global de configurações
+settings = AuthSettings()

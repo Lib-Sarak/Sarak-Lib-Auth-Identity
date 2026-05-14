@@ -1,6 +1,6 @@
 /**
- * AuthModuleManifest (v8.1)
- * Extraído para arquivo próprio para evitar dependências circulares.
+ * AuthModuleManifest (v9.0)
+ * Sincronização Soberana: Níveis Hierárquicos e Matriz de Permissões (v10.0)
  */
 export interface VisualContract {
   id: string;
@@ -30,13 +30,13 @@ export const AuthModuleManifest: {
   capabilities: any;
   visualContracts: VisualContract[];
 } = {
-  "contract": "v6.8",
+  "contract": "v10.0",
   "id": "sarak-lib-auth-identity",
-  "label": "Sovereign Identity",
+  "label": "Identidade Soberana",
   "icon": "ShieldCheck",
   "category": "Core Security",
   "baseUrl": "/auth",
-  "version": "8.0.0",
+  "version": "9.0.0",
   "priority": 0,
   "endpoints": {
     "v1": {
@@ -47,6 +47,7 @@ export const AuthModuleManifest: {
       "register": "/register",
       "me": "/me",
       "users": "/users",
+      "user_detail": "/users/{user_id}",
       "user_role": "/users/{user_id}/role",
       "interactions": "/interactions",
       "roles": "/roles",
@@ -57,13 +58,16 @@ export const AuthModuleManifest: {
       "password_reset_request": "/password-reset/request",
       "password_reset_confirm": "/password-reset/confirm",
       "oauth_login": "/oauth/{provider}/login",
-      "oauth_callback": "/oauth/{provider}/callback"
+      "oauth_callback": "/oauth/{provider}/callback",
+      "oauth_status": "/oauth/status"
     }
   },
   "capabilities": {
     "security": {
       "levels": [
         { "id": 10, "label": "USER", "color": "blue" },
+        { "id": 20, "label": "LEITOR", "color": "cyan" },
+        { "id": 30, "label": "EDITOR", "color": "emerald" },
         { "id": 50, "label": "ADMIN", "color": "purple" },
         { "id": 100, "label": "MASTER", "color": "gold" }
       ],
@@ -91,6 +95,7 @@ export const AuthModuleManifest: {
       "endpoint": "v1.interactions",
       "tab": "Auditoria",
       "requiredPermission": "rbac:view",
+      "actions": [],
       "mapping": {
         "total_logins": "Logins (24h)",
         "active_sessions": "Sessões Ativas",
@@ -112,6 +117,7 @@ export const AuthModuleManifest: {
       "endpoint": "v1.interactions",
       "tab": "Auditoria",
       "requiredPermission": "rbac:view",
+      "actions": [],
       "config": {
         "params": { "scope": "sessions" },
         "columns": ["ip_address", "user_agent", "created_at", "expires_at"]
@@ -130,6 +136,7 @@ export const AuthModuleManifest: {
       "endpoint": "v1.interactions",
       "tab": "Auditoria",
       "requiredPermission": "rbac:view",
+      "actions": [],
       "config": {
         "params": { "scope": "logins" },
         "columns": ["username", "ip", "status", "created_at"]
@@ -148,6 +155,7 @@ export const AuthModuleManifest: {
       "endpoint": "v1.interactions",
       "tab": "Auditoria",
       "requiredPermission": "rbac:view",
+      "actions": [],
       "config": {
         "params": { "scope": "attacks" },
         "columns": ["ip", "reason", "created_at"]
@@ -167,8 +175,18 @@ export const AuthModuleManifest: {
       "requiredPermission": "user:manage",
       "config": {
         "actions": [
-          { "id": "promote", "label": "Promover", "endpoint": "v1.user_role", "method": "PATCH" },
-          { "id": "ban", "label": "Bloquear", "endpoint": "v1.users", "method": "DELETE" }
+          { 
+            "id": "promote", 
+            "label": "Ajustar Nível", 
+            "endpoint": "v1.user_role", 
+            "method": "PATCH",
+            "form": {
+              "fields": [
+                { "name": "role_id", "label": "Novo Papel/Nível", "type": "SELECT", "source": "v1.roles" }
+              ]
+            }
+          },
+          { "id": "ban", "label": "Bloquear", "endpoint": "v1.user_detail", "method": "DELETE" }
         ],
         "columns": ["username", "email", "role_names", "is_active"]
       },
@@ -188,13 +206,17 @@ export const AuthModuleManifest: {
       "requiredPermission": "rbac:manage",
       "groupBy": "level",
       "ghostGroups": [
-        { "key": 10, "label": "NÍVEL: USER" },
-        { "key": 50, "label": "NÍVEL: ADMIN" },
-        { "key": 100, "label": "NÍVEL: MASTER" }
+        { "id": 10, "label": "USUÁRIOS", "name": "USUÁRIOS" },
+        { "id": 20, "label": "LEITORES", "name": "LEITORES" },
+        { "id": 30, "label": "EDITORES", "name": "EDITORES" },
+        { "id": 50, "label": "ADMINISTRADORES", "name": "ADMINISTRADORES" },
+        { "id": 100, "label": "SUPREMO (MASTER)", "name": "SUPREMO (MASTER)" }
       ],
+      "actions": [],
       "mapping": {
-        "id": "role_id",
+        "id": "id",
         "title": "name",
+        "level": "level",
         "description": "description",
         "tags": "permission_tags",
         "isActive": "is_active"
@@ -218,6 +240,7 @@ export const AuthModuleManifest: {
       "tab": "Governança",
       "endpoint": "v1.permissions",
       "requiredPermission": "rbac:manage",
+      "actions": [],
       "config": {
         "allowCreate": true,
         "columns": ["name", "description"]
@@ -229,11 +252,12 @@ export const AuthModuleManifest: {
     },
     {
       "id": "oauth_sso_config",
-      "type": "GRID",
+      "type": "CARD_GRID",
       "label": "Provedores de SSO (OAuth)",
       "tab": "Segurança",
-      "endpoint": "v1.interactions",
+      "endpoint": "v1.oauth_status",
       "requiredPermission": "rbac:manage",
+      "actions": [],
       "mapping": {
         "title": "Google / GitHub",
         "status": "Configurado"
@@ -244,7 +268,9 @@ export const AuthModuleManifest: {
       "type": "SECURITY_ORCHESTRATOR",
       "label": "Configuração de MFA Soberano",
       "tab": "Segurança",
-      "endpoint": "v1.mfa_orch"
+      "endpoint": "v1.mfa_orch",
+      "actions": [],
+      "mapping": {}
     },
     {
       "id": "account_security_form",

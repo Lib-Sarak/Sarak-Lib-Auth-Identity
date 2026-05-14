@@ -20,7 +20,11 @@ setup(
         "pyotp",
         "qrcode",
         "httpx-oauth",
-        "httpx"
+        "httpx",
+        "casbin",
+        "casbin-sqlalchemy-adapter",
+        "pydantic-settings",
+        "alembic"
     ],
     author="Igor Sarak",
     description="Módulo de Identidade e Autenticação Base (Sarak Library)",

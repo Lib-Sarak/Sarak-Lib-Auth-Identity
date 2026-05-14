@@ -1,152 +1,122 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { DynamicRenderer } from '@sarak/lib-ui-core';
 import { AuthModuleManifest } from '../../manifest';
 import { useAuth } from '../../providers/AuthProvider';
-import { ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { Shield, Users, Gavel, Activity, UserCircle } from 'lucide-react';
 
 /**
- * SecurityModule (v1.4)
- * Auditoria Soberana: Toggles integrados e Sincronização de Dados (v8.6)
+ * TAB_ICONS (v2.0)
+ * Mapeamento de ícones para abas do manifesto.
+ */
+const TAB_ICONS: Record<string, any> = {
+    'Auditoria': Activity,
+    'Usuários': Users,
+    'Governança': Gavel,
+    'Segurança': Shield,
+    'Minha Conta': UserCircle
+};
+
+/**
+ * SecurityModule (v2.0)
+ * 100% Manifest-Driven: Purificado de lógica de UI hardcoded.
+ * Orquestração Dinâmica: Renderiza abas e contratos exclusivamente via manifest.json.
  */
 export const SecurityModule: React.FC = () => {
     const { user, loading } = useAuth();
-    const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
     
-    const filteredContracts = useMemo(() => {
-        // [Importante] Se não houver usuário e não estiver carregando, 
-        // ou se as permissões ainda não chegaram, mostramos apenas o básico.
+    // 1. Filtragem Soberana de Contratos por Permissão
+    const allowedContracts = useMemo(() => {
         if (loading) return [];
-
         return AuthModuleManifest.visualContracts.filter(contract => {
             if (!contract.requiredPermission) return true;
             
-            // Lógica Soberana: Superuser tem acesso total, outros dependem de permissões explícitas.
+            // Superuser ignora verificações de permissão
             if (user?.is_active && user?.is_superuser) return true;
 
-            return user?.permissions?.includes(contract.requiredPermission);
+            // Verificação explícita de permissões do usuário ou wildcard
+            return user?.permissions?.includes(contract.requiredPermission) || user?.permissions?.includes('*');
         });
     }, [user, loading]);
 
-    const statsContract = filteredContracts.find(c => c.type === 'STATS' && c.tab === 'Auditoria');
-    
-    // Filtramos contratos para abas que NÃO são Auditoria
-    const otherTabsContracts = filteredContracts.filter(c => c.tab !== 'Auditoria');
-    
-    // Contratos de auditoria que NÃO são o STATS principal e NÃO são detalhamentos escondidos
-    const auditBodyContracts = filteredContracts.filter(c => 
-        c.tab === 'Auditoria' && 
-        c.type !== 'STATS' && 
-        !c.id.includes('audit_')
+    // 2. Extração Dinâmica de Abas do Manifesto
+    const tabs = useMemo(() => {
+        const uniqueTabs = Array.from(new Set(allowedContracts.map(c => c.tab)));
+        
+        // Ordenação Industrial: Segurança sempre como aba central/primeira
+        return uniqueTabs.sort((a, b) => {
+            if (a === 'Segurança') return -1;
+            if (b === 'Segurança') return 1;
+            if (a === 'Auditoria') return 1; // Auditoria geralmente no final
+            if (b === 'Auditoria') return -1;
+            return a.localeCompare(b);
+        });
+    }, [allowedContracts]);
+
+    const [activeTab, setActiveTab] = useState<string>('');
+
+    // Sincronização de Aba Ativa
+    useEffect(() => {
+        if (tabs.length > 0 && (!activeTab || !tabs.includes(activeTab))) {
+            setActiveTab(tabs[0]);
+        }
+    }, [tabs, activeTab]);
+
+    if (loading) return (
+        <div className="flex items-center justify-center h-64 text-white/20 animate-pulse">
+            <Shield className="mr-2 animate-spin-slow" size={20} />
+            <span className="uppercase tracking-[0.3em] text-[10px] font-black">Sincronizando Identidade Soberana...</span>
+        </div>
     );
 
-    const toggleMetric = (key: string) => {
-        setExpandedMetric(prev => prev === key ? null : key);
-    };
-
-    if (loading) return <div className="p-8 text-center text-white/20 animate-pulse">Autenticando Identidade Soberana...</div>;
+    // Contratos da aba atual
+    const currentContracts = allowedContracts.filter(c => c.tab === activeTab);
 
     return (
-        <div className="sarak-security-module flex flex-col gap-6 p-2">
-            {/* 1. ABA AUDITORIA (Layout Customizado) */}
-            {statsContract && (
-                <div className="audit-dashboard flex flex-col gap-4">
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                        <h2 className="text-lg font-bold text-white/90">{statsContract.label}</h2>
-                    </div>
+        <div className="sarak-identity-module flex flex-col h-full bg-black/40 rounded-3xl border border-white/5 overflow-hidden shadow-2xl backdrop-blur-sm">
+            {/* 1. NAVEGAÇÃO POR ABAS (Derivada do Manifest) */}
+            <nav className="flex items-center gap-1 p-3 bg-white/5 border-b border-white/5 overflow-x-auto no-scrollbar">
+                {tabs.map(tab => {
+                    const Icon = TAB_ICONS[tab] || Shield;
+                    const isActive = activeTab === tab;
+                    return (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`
+                                flex items-center gap-3 px-5 py-3 rounded-2xl text-[10px] font-black transition-all duration-500 group
+                                ${isActive 
+                                    ? 'bg-emerald-500 text-black shadow-[0_10px_30px_rgba(16,185,129,0.2)]' 
+                                    : 'text-white/30 hover:text-white/80 hover:bg-white/5'
+                                }
+                            `}
+                        >
+                            <Icon size={14} className={`${isActive ? 'scale-110' : 'opacity-50 group-hover:opacity-100'} transition-transform duration-500`} />
+                            <span className="uppercase tracking-[0.2em]">{tab}</span>
+                        </button>
+                    );
+                })}
+            </nav>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {Object.entries(statsContract.mapping || {}).map(([key, label]) => (
-                            <div 
-                                key={key}
-                                className={`group relative flex flex-col p-4 rounded-xl border transition-all duration-300 ${
-                                    expandedMetric === key 
-                                    ? 'bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/20' 
-                                    : 'bg-zinc-900/50 border-white/5 hover:border-white/10'
-                                }`}
-                            >
-                                <div className="pointer-events-none mb-4">
-                                    <DynamicRenderer 
-                                        contracts={[{
-                                            ...statsContract,
-                                            mapping: { [key]: label }
-                                        }] as any} 
-                                        module={AuthModuleManifest as any} 
-                                    />
-                                </div>
-
-                                <button
-                                    onClick={() => toggleMetric(key)}
-                                    className={`mt-auto flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
-                                        expandedMetric === key
-                                        ? 'bg-emerald-500 text-black'
-                                        : 'bg-white/5 text-white/40 group-hover:bg-white/10 group-hover:text-white/70'
-                                    }`}
-                                >
-                                    {expandedMetric === key ? (
-                                        <>Recolher <ChevronUp size={12} /></>
-                                    ) : (
-                                        <>Analisar <Eye size={12} /></>
-                                    )}
-                                </button>
+            {/* 2. RENDERIZADOR DINÂMICO SOBERANO */}
+            <main className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                <div className="max-w-6xl mx-auto w-full py-4 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    {currentContracts.length > 0 ? (
+                        currentContracts.map(contract => (
+                            <div key={contract.id} className="contract-wrapper">
+                                <DynamicRenderer 
+                                    contracts={[contract] as any} 
+                                    module={AuthModuleManifest as any} 
+                                />
                             </div>
-                        ))}
-                    </div>
-
-                    {expandedMetric && (
-                        <div className="mt-2 animate-in fade-in zoom-in-95 duration-300">
-                            {(() => {
-                                const detailContractId = statsContract.config?.detailMappings?.[expandedMetric];
-                                const detailContract = filteredContracts.find(c => c.id === detailContractId);
-                                if (!detailContract) return null;
-                                
-                                const scope = statsContract.config?.detailMappings?.[expandedMetric]?.replace('audit_', '').replace('_table', '');
-                                
-                                return (
-                                    <div className="bg-zinc-900/80 rounded-xl border border-white/5 overflow-hidden shadow-2xl">
-                                        <div className="p-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
-                                            <div className="flex flex-col">
-                                                <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Detalhamento Soberano</span>
-                                                <span className="text-lg font-bold text-white">{detailContract.label}</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => setExpandedMetric(null)}
-                                                className="p-2 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-colors"
-                                            >
-                                                <ChevronUp size={20} />
-                                            </button>
-                                        </div>
-                                        <div className="p-2">
-                                            <DynamicRenderer 
-                                                contracts={[{
-                                                    ...detailContract,
-                                                    config: { 
-                                                        ...detailContract.config, 
-                                                        params: { ...detailContract.config?.params, scope } 
-                                                    }
-                                                }] as any} 
-                                                module={AuthModuleManifest as any} 
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })()}
+                        ))
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-20 text-white/10 opacity-50">
+                            <Shield size={48} strokeWidth={1} className="mb-4" />
+                            <p className="text-xs uppercase tracking-widest font-bold">Nenhum contrato visual disponível para este nível de acesso.</p>
                         </div>
                     )}
-
-                    {/* Outros componentes da Auditoria (se houver) */}
-                    <DynamicRenderer 
-                        contracts={auditBodyContracts as any} 
-                        module={AuthModuleManifest as any} 
-                    />
                 </div>
-            )}
-
-            {/* 2. OUTRAS ABAS (Usuários, Governança, Minha Conta) */}
-            <DynamicRenderer 
-                contracts={otherTabsContracts as any} 
-                module={AuthModuleManifest as any} 
-            />
+            </main>
         </div>
     );
 };

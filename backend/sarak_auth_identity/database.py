@@ -1,17 +1,15 @@
-import os
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import contextvars
 import logging
+from .config import settings
 
-# --- SOVEREIGN DATABASE CONFIGURATION (v6.8) ---
-load_dotenv()
-
+# --- SOVEREIGN DATABASE CONFIGURATION (v9.0) ---
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/sarak_db")
+DATABASE_URL = settings.DATABASE_URL
+
 SCHEMA_NAME = "sarak_auth"
 
 engine = create_engine(
@@ -25,10 +23,17 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+def get_auth_schema():
+    """Retorna o nome do schema se não for SQLite (v9.0)."""
+    if engine.url.drivername == "sqlite":
+        return None
+    return SCHEMA_NAME
+
 # Local contexts for middleware compatibility
 identity_context = contextvars.ContextVar("identity_context", default=None)
 level_context = contextvars.ContextVar("level_context", default=10) # 10: USER default
 tenant_context = contextvars.ContextVar("tenant_context", default="public")
+
 
 def get_db():
     """Database session dependency."""
@@ -38,82 +43,33 @@ def get_db():
     finally:
         db.close()
 
-def setup_identity_db(ext_engine=None):
-    """Ensures the authentication schema exists and tables are created/updated (v7.5 Migration)."""
-    target_engine = ext_engine or engine
+def setup_auth_database(target_engine=None):
+    """
+    Inicializa o schema e as tabelas de identidade (v10.0).
+    Pode ser chamado pelo MyService ou qualquer módulo que importe esta lib.
+    """
+    from sqlalchemy import text
+    from .core.models import User, Role, Permission # Garante que os modelos sejam carregados
+    from .core.seed import seed_auth_identity # Importação tardia para evitar circularidade
     
+    active_engine = target_engine or engine
+    is_postgres = active_engine.url.drivername.startswith("postgresql")
+    
+    print(f" [AUTH] Inicializando Banco de Dados em: {active_engine.url.database}")
+    
+    if is_postgres:
+        with active_engine.connect() as conn:
+            print(f" [AUTH] Criando schema '{SCHEMA_NAME}' se não existir...")
+            conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA_NAME};"))
+            conn.commit()
+
+    # Cria as tabelas vinculadas ao Base desta biblioteca
+    Base.metadata.create_all(bind=active_engine)
+    print(" [AUTH] Tabelas de identidade verificadas/criadas com sucesso.")
+
+    # Executa o seed automático para garantir que o Master exista
     try:
-        with target_engine.connect() as conn:
-            # 1. Schema
-            conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA_NAME}"))
-            conn.commit()
-            
-            # 2. Base tables creation
-            # Local import to avoid circular dependencies
-            from sarak_auth_identity.core.models import User
-            Base.metadata.create_all(bind=target_engine)
-            
-            # 3. Lightweight Migration (Add 'system' column and convert PKs to composite)
-            # This is critical for systems transitioning from v6.8 to v7.5
-            affected_tables = {
-                'users': 'user_id', 
-                'roles': 'role_id', 
-                'permissions': 'permission_id', 
-                'user_sessions': 'session_id', 
-                'user_interactions': 'interaction_id'
-            }
-            for table, pk_col in affected_tables.items():
-                # 1. Garantir que a coluna 'system' existe
-                conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.{table} ADD COLUMN IF NOT EXISTS system VARCHAR(50) DEFAULT 'global'"))
-                
-                # 2. Garantir índice para performance
-                conn.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{table}_system ON {SCHEMA_NAME}.{table}(system)"))
-                
-                # 3. Converter PK para composta se necessário
-                pk_check = f"""
-                    SELECT count(*) FROM information_schema.key_column_usage 
-                    WHERE table_schema = '{SCHEMA_NAME}' AND table_name = '{table}' AND column_name = 'system'
-                """
-                is_composite = conn.execute(text(pk_check)).scalar()
-                
-                if is_composite == 0:
-                    logger.info(f" [Migration] Converting PK of {SCHEMA_NAME}.{table} to composite (v7.6)...")
-                    # No PG, o nome padrão é {table}_pkey. Para tabelas com UUID, às Às vezes varia. 
-                    # Usamos CASCADE para limpar dependências internas se necessário.
-                    conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.{table} DROP CONSTRAINT IF EXISTS {table}_pkey CASCADE"))
-                    conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.{table} ADD PRIMARY KEY ({pk_col}, system)"))
-            
-            conn.commit()
-
-            # 4. Hierarquia e OAuth (v7.6 Migration)
-            # Garantir coluna level em roles
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.roles ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 10"))
-            
-            # Garantir colunas OAuth em users
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS oauth_provider VARCHAR(50)"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS oauth_id VARCHAR(255)"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS avatar_url TEXT"))
-            
-            # MFA Columns (v7.7 Migration)
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS mfa_secret VARCHAR(100)"))
-            
-            # Preferences (v8.0 Migration)
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{{}}'"))
-            
-            # Profile Expansion (v8.6 Migration)
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_street VARCHAR(255)"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_number VARCHAR(50)"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_complement VARCHAR(255)"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_city VARCHAR(100)"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_state VARCHAR(100)"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_zip VARCHAR(20)"))
-            conn.execute(text(f"ALTER TABLE {SCHEMA_NAME}.users ADD COLUMN IF NOT EXISTS address_country VARCHAR(100) DEFAULT 'Brasil'"))
-
-            conn.commit()
-        
-        logger.info(f" [Auth DB] Sovereignty: Schema '{SCHEMA_NAME}' and multi-tenant columns verified.")
+        print(" [AUTH] Executando sincronização de dados mestre (Seed)...")
+        seed_auth_identity(active_engine)
     except Exception as e:
-        logger.error(f" [Auth DB] Critical failure during schema setup: {e}")
-        raise
+        print(f" [AUTH] Aviso no Seed: {e}")

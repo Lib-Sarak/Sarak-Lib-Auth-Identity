@@ -13,6 +13,7 @@ def seed_auth_identity(engine: Engine):
     """
     from .models import User, Role, Permission
     from . import auth_service
+    from .auth_service import get_enforcer
     
     # Identifica o sistema soberano de forma estrita (v8.1)
     target_system = os.getenv("SARAK_SYSTEM_NAME")
@@ -26,7 +27,6 @@ def seed_auth_identity(engine: Engine):
     try:
         with engine.connect() as conn:
             conn.execute(text("CREATE SCHEMA IF NOT EXISTS sarak_auth"))
-            conn.execute(text("CREATE SCHEMA IF NOT EXISTS sarak_llm"))
             conn.commit()
     except Exception as e:
         logger.warning(f" [!] Auth-Seed: Schema validation warning: {e}")
@@ -139,9 +139,53 @@ def seed_auth_identity(engine: Engine):
             db.commit()
         logger.info(f" [OK] Sovereign Identity seeding completed for systems: {systems_to_seed}")
         # Conferência Final
-        total = db.query(User).count()
-        logger.info(f" [Seed-Final] Verification: {total} users in database after sync.")
+        # --- Sincronização Casbin (v9.0) ---
+        logger.info(" [Seed-Casbin] Syncing Casbin policies...")
+        enforcer = get_enforcer()
+        
+        for sys_name in systems_to_seed:
+            # 1. Limpa regras antigas deste sistema para evitar duplicatas (Idempotência)
+            # Nota: Em produção, você pode preferir apenas adicionar.
+            enforcer.remove_filtered_policy(1, sys_name)
+            
+            # 2. Mapeia a Hierarquia Sarak no Casbin
+            # Formato: g, role_filha, role_pai, dominio
+            hierarchy = [
+                ("MASTER", "ADMIN"),
+                ("ADMIN", "EDITOR"),
+                ("EDITOR", "USER")
+            ]
+            for sub, parent in hierarchy:
+                enforcer.add_grouping_policy(sub, parent, sys_name)
+
+            # 3. Mapeia Permissões das Roles para Casbin
+            # Formato: p, role, dominio, recurso, acao
+            for r_config in roles_config:
+                for p_name in r_config["perms"]:
+                    # No Sarak, p_name costuma ser 'recurso:acao' ou apenas 'permissao'
+                    # Vamos mapear p_name como o 'objeto/recurso' e 'access' como ação padrão
+                    enforcer.add_policy(r_config["name"], sys_name, p_name, "access")
+
+            # 4. Mapeia Usuários Específicos para Roles no Casbin
+            for user_data in master_users:
+                user_obj = db.query(User).filter(User.email == user_data["email"], User.system == sys_name).first()
+                if user_obj:
+                    for role_name in user_data["roles"]:
+                        enforcer.add_grouping_policy(str(user_obj.user_id), sys_name, role_name)
+
+        enforcer.save_policy()
+        logger.info(" [OK] Casbin policies synced successfully.")
+
+
     except Exception as e:
         db.rollback()
         logger.error(f" [!] Auth-Seed: Critical error during seeding: {e}")
-    # REMOVIDO: db.close() pois a sessão é gerenciada pelo chamador
+    finally:
+        db.close()
+
+if __name__ == "__main__":
+    from sarak_auth_identity.database import engine
+    # Configurar log para console para vermos a saída
+    logging.basicConfig(level=logging.INFO)
+    logger.info(" [Manual-Seed] Starting manual seed process...")
+    seed_auth_identity(engine)
