@@ -95,13 +95,12 @@ class PermissionResponse(BaseModel):
         from_attributes = True
 
 class RoleResponse(BaseModel):
-    role_id: uuid.UUID
+    id: str
     name: str
     description: Optional[str] = None
     is_active: bool = True
     permission_names: List[str] = []
-    permission_tags: List[dict] = [] # Formato enriquecido para UI: {label, color}
-    permissions: List[PermissionResponse] = []
+    permission_tags: List[dict] = []
     class Config:
         from_attributes = True
 
@@ -112,6 +111,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     system: str
     is_active: bool
+    is_superuser: bool = False
     roles: List[RoleResponse] = []
     role_names: Optional[str] = None
     permissions: List[str] = []
@@ -254,12 +254,23 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     # Log interaction
     InteractionService.log_interaction(db, data.system, "auth", "login", {"email": user.email})
     
+    # Flatten permissions for the response
+    all_permissions = set()
+    if user.is_superuser:
+        all_permissions.add('*')
+    for role in user.roles:
+        for perm in role.permissions:
+            all_permissions.add(perm.name)
+
     # Mask user data for TokenResponse
     masked_user = {
         "user_id": user_id_str,
         "username": user.username,
         "email": user.email,
-        "system": user.system
+        "system": user.system,
+        "is_superuser": user.is_superuser,
+        "permissions": list(all_permissions),
+        "role_names": ", ".join([r.name for r in user.roles])
     }
     
     return {
@@ -438,116 +449,141 @@ def deactivate_user(user_id: uuid.UUID, db: Session = Depends(get_db), current_u
     return {"status": "success", "message": "Usuário desativado com sucesso"}
 
 @router.get("/interactions")
-def get_interactions(
-    scope: Optional[str] = None,
+def list_interactions(
+    scope: Optional[str] = None, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Retorna métricas agregadas ou detalhadas para o Visual Contract STATS e TABLES (v8.6).
+    Lista interações ou sessões baseadas no escopo (v10.0).
+    Suporta: 'sessions', 'logins', 'attacks'.
     """
     from datetime import datetime, timedelta
     
-    # --- MODO DETALHAMENTO (Tabelas) ---
-    if scope == "sessions":
-        sessions = db.query(UserSession).filter(
+    if not auth_service.has_permission(current_user, "rbac:view"):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    # [Métricas Agregadas para o STATS]
+    if not scope:
+        yesterday = datetime.utcnow() - timedelta(hours=24)
+        total_logins = db.query(UserInteraction).filter(
+            UserInteraction.system == current_user.system,
+            UserInteraction.action == "LOGIN_SUCCESS",
+            UserInteraction.created_at >= yesterday
+        ).count()
+
+        active_sessions = db.query(UserSession).filter(
             UserSession.system == current_user.system,
             UserSession.is_revoked == False,
             UserSession.expires_at > func.now()
-        ).all()
-        return [
-            {
-                "session_id": str(s.session_id),
+        ).count()
+
+        blocked_attempts = db.query(UserInteraction).filter(
+            UserInteraction.system == current_user.system,
+            UserInteraction.action == "LOGIN_FAILED"
+        ).count()
+
+        return {
+            "total_logins": total_logins,
+            "active_sessions": active_sessions,
+            "blocked_attempts": blocked_attempts
+        }
+
+    # [ESCOPO: SESSÕES ATIVAS]
+    if scope == "sessions":
+        query = db.query(UserSession).filter(
+            UserSession.is_revoked == False,
+            UserSession.expires_at > func.now()
+        )
+        if not auth_service.has_permission(current_user, "rbac:manage"):
+            query = query.filter(UserSession.system == current_user.system)
+        
+        sessions = query.all()
+        # Adicionar username para exibição na tabela
+        results = []
+        for s in sessions:
+            u = db.query(User).filter(User.user_id == s.user_id).first()
+            results.append({
+                "id": str(s.session_id),
+                "username": u.username if u else "Desconhecido",
                 "ip_address": s.ip_address,
                 "user_agent": s.user_agent,
                 "created_at": s.created_at,
-                "expires_at": s.expires_at,
-                "is_revoked": s.is_revoked
-            } for s in sessions
-        ]
+                "expires_at": s.expires_at
+            })
+        return results
 
+    # [ESCOPO: LOGINS / AUDITORIA]
+    query = db.query(UserInteraction).filter(UserInteraction.system == current_user.system)
+    
     if scope == "logins":
-        yesterday = datetime.utcnow() - timedelta(hours=24)
-        logins = db.query(UserInteraction).filter(
-            UserInteraction.system == current_user.system,
-            UserInteraction.action == "login",
-            UserInteraction.created_at >= yesterday
-        ).order_by(UserInteraction.created_at.desc()).limit(100).all()
-        # Enriquecimento simples para a tabela
-        return [{"username": l.payload.get("email") if l.payload else "N/A", "ip": "Internal", "status": "Sucesso", "created_at": l.created_at} for l in logins]
-
-    if scope == "attacks":
-        attacks = db.query(UserInteraction).filter(
-            UserInteraction.system == current_user.system,
-            UserInteraction.action == "login_failure"
-        ).order_by(UserInteraction.created_at.desc()).limit(100).all()
-        return [{"ip": "Detected", "reason": l.payload.get("reason", "Senha Incorreta"), "created_at": l.created_at} for l in attacks]
-
-    # --- MODO AGREGADO (Cards STATS) ---
-    yesterday = datetime.utcnow() - timedelta(hours=24)
-    total_logins = db.query(UserInteraction).filter(
-        UserInteraction.system == current_user.system,
-        UserInteraction.action == "login",
-        UserInteraction.created_at >= yesterday
-    ).count()
-
-    active_sessions = db.query(UserSession).filter(
-        UserSession.system == current_user.system,
-        UserSession.is_revoked == False,
-        UserSession.expires_at > func.now()
-    ).count()
-
-    blocked_attempts = db.query(UserInteraction).filter(
-        UserInteraction.system == current_user.system,
-        UserInteraction.action == "login_failure"
-    ).count()
-
-    return {
-        "total_logins": total_logins,
-        "active_sessions": active_sessions,
-        "blocked_attempts": blocked_attempts
-    }
+        query = query.filter(UserInteraction.action.in_(["LOGIN_SUCCESS", "LOGIN_FAILED", "LOGOUT"]))
+    elif scope == "attacks":
+        query = query.filter(UserInteraction.action.in_(["MFA_FAILED", "PASSWORD_RESET_FAILED", "BLOCKED_ATTEMPT"]))
+    
+    interactions = query.order_by(UserInteraction.created_at.desc()).limit(100).all()
+    
+    # Formatação para o frontend (mapeando payload para colunas planas)
+    results = []
+    for inter in interactions:
+        results.append({
+            "id": str(inter.interaction_id),
+            "username": inter.payload.get("username", "System") if inter.payload else "System",
+            "ip": inter.payload.get("ip", "0.0.0.0") if inter.payload else "0.0.0.0",
+            "status": "Sucesso" if "SUCCESS" in inter.action else "Falha",
+            "reason": inter.payload.get("reason", inter.action) if inter.payload else inter.action,
+            "created_at": inter.created_at
+        })
+    return results
 
 @router.get("/roles", response_model=List[RoleResponse])
 def list_roles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Lista todos os papéis disponíveis para gestão (Com enriquecimento de tags)."""
-    # [CAPABILITY RBAC] Requer permissão de visualização de matriz
     is_test_user = current_user.username.lower() == "master" or current_user.email.lower() == "master@seed.com"
-    if not (auth_service.has_permission(current_user, "rbac:view") or is_test_user):
-        raise HTTPException(status_code=403, detail="Acesso negado: Requer permissão 'rbac:view'")
+    is_master = current_user.is_superuser or is_test_user
+    
+    if not (auth_service.has_permission(current_user, "rbac:view") or is_master):
+        raise HTTPException(status_code=403, detail="Acesso negado")
 
-    roles = db.query(Role).filter(Role.system == current_user.system).options(joinedload(Role.permissions)).all()
+    query = db.query(Role).options(joinedload(Role.permissions))
+    
+    # Se não for MASTER, filtra estritamente pelo sistema
+    if not is_master:
+        query = query.filter(Role.system == current_user.system)
+        
+    roles = query.all()
     roles_data = []
     for role in roles:
         roles_data.append({
-            "role_id": str(role.role_id),
+            "id": str(role.role_id), 
             "name": role.name,
             "description": role.description,
-            "is_active": True, # Roles seedadas são sempre ativas por padrão
-            "permission_names": role.permission_names,
+            "is_active": True,
+            "type": "Estratégico" if role.name in ["MASTER", "SUPERUSER"] else "Operacional",
+            "permission_names": [p.name for p in role.permissions],
             "permission_tags": [
                 {"label": p.name, "color": "emerald" if "manage" in p.name else "blue"} 
                 for p in role.permissions
             ]
         })
-        
     return roles_data
 
 @router.post("/roles")
 def create_role(data: RoleCreateUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Cria ou atualiza um papel e suas permissões via JSON (v8.1)."""
-    # [PROTEÇÃO] Apenas usuários com alto privilégio ou conta de teste autorizada
     is_test_user = current_user.username.lower() == "master" or current_user.email.lower() == "master@seed.com"
     is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
     
     if is_master or is_test_user:
-        return auth_service.update_or_create_role(
+        role = auth_service.update_or_create_role(
             db, 
             name=data.name, 
             system=current_user.system, 
             permissions=data.permission_names,
             description=data.description
         )
+        return {"id": str(role.role_id), "status": "success", "message": "Papel processado"}
+        
     raise HTTPException(status_code=403, detail="Acesso negado: Apenas nível MASTER pode alterar a matriz RBAC")
 
 @router.put("/users/{user_id}/roles")
@@ -566,29 +602,54 @@ def list_permissions(db: Session = Depends(get_db), current_user: User = Depends
     query = db.query(Permission)
     if not auth_service.has_permission(current_user, "rbac:manage"):
         query = query.filter(Permission.system == current_user.system)
-    return query.all()
+    
+    perms = query.all()
+    return [{"id": str(p.permission_id), "name": p.name, "description": p.description} for p in perms]
 
 @router.post("/permissions")
-def create_permission(data: PermissionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Cria uma nova regra técnica de permissão (v10.0)."""
+def create_or_update_permission(data: PermissionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Cria ou atualiza uma regra técnica de permissão (v10.0)."""
     if not auth_service.has_permission(current_user, "rbac:manage"):
         raise HTTPException(status_code=403, detail="Acesso negado")
         
-    # Verifica se já existe
-    existing = db.query(Permission).filter(Permission.name == data.name, Permission.system == current_user.system).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Esta regra já existe no sistema")
-        
-    new_perm = Permission(
-        permission_id=uuid.uuid4(),
-        name=data.name,
-        description=data.description,
-        system=current_user.system
-    )
-    db.add(new_perm)
+    perm = db.query(Permission).filter(Permission.name == data.name, Permission.system == current_user.system).first()
+    if perm:
+        perm.description = data.description
+    else:
+        perm = Permission(
+            permission_id=uuid.uuid4(),
+            name=data.name,
+            description=data.description,
+            system=current_user.system
+        )
+        db.add(perm)
+    
     db.commit()
-    db.refresh(new_perm)
-    return new_perm
+    db.refresh(perm)
+    return {"id": str(perm.permission_id), "status": "success"}
+
+
+@router.delete("/sessions/{session_id}")
+def revoke_session(
+    session_id: uuid.UUID, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Revoga uma sessão específica (Gestão de Acesso Ativo)."""
+    if not auth_service.has_permission(current_user, "user:manage"):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    session = db.query(UserSession).filter(UserSession.session_id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+    
+    # [TRAVA] ADMIN só revoga sessões do seu sistema
+    if not current_user.is_superuser and session.system != current_user.system:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    session.is_revoked = True
+    db.commit()
+    return {"status": "success", "message": "Sessão revogada com sucesso"}
 
 @router.post("/interactions")
 def log_user_interaction(
@@ -741,6 +802,14 @@ def login_mfa(request: Request, data: MFALoginRequest, db: Session = Depends(get
     
     InteractionService.log_interaction(db, system, "auth", "login_mfa", {"email": user.email})
     
+    # Flatten permissions for the response
+    all_permissions = set()
+    if user.is_superuser:
+        all_permissions.add('*')
+    for role in user.roles:
+        for perm in role.permissions:
+            all_permissions.add(perm.name)
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -749,7 +818,10 @@ def login_mfa(request: Request, data: MFALoginRequest, db: Session = Depends(get
             "user_id": user_id_str,
             "username": user.username,
             "email": user.email,
-            "system": user.system
+            "system": user.system,
+            "is_superuser": user.is_superuser,
+            "permissions": list(all_permissions),
+            "role_names": ", ".join([r.name for r in user.roles])
         }
     }
 

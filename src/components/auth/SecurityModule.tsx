@@ -9,11 +9,10 @@ import { Shield, Users, Gavel, Activity, UserCircle } from 'lucide-react';
  * Mapeamento de ícones para abas do manifesto.
  */
 const TAB_ICONS: Record<string, any> = {
-    'Auditoria': Activity,
-    'Usuários': Users,
+    'Monitoramento': Activity,
+    'Identidades': Users,
     'Governança': Gavel,
-    'Segurança': Shield,
-    'Minha Conta': UserCircle
+    'Segurança': Shield
 };
 
 /**
@@ -26,15 +25,18 @@ export const SecurityModule: React.FC = () => {
     
     // 1. Filtragem Soberana de Contratos por Permissão
     const allowedContracts = useMemo(() => {
-        if (loading) return [];
+        if (loading || !user) return [];
+        
         return AuthModuleManifest.visualContracts.filter(contract => {
+            // 1. Superuser ou Master com wildcard vê tudo (Soberania Total)
+            const isSuper = user.is_superuser || user.permissions?.includes('*');
+            if (isSuper) return true;
+            
+            // 2. Contratos sem permissão requerida são públicos/básicos
             if (!contract.requiredPermission) return true;
             
-            // Superuser ignora verificações de permissão
-            if (user?.is_active && user?.is_superuser) return true;
-
-            // Verificação explícita de permissões do usuário ou wildcard
-            return user?.permissions?.includes(contract.requiredPermission) || user?.permissions?.includes('*');
+            // 3. Verificação explícita de permissão
+            return user.permissions?.includes(contract.requiredPermission);
         });
     }, [user, loading]);
 
@@ -46,8 +48,8 @@ export const SecurityModule: React.FC = () => {
         return uniqueTabs.sort((a, b) => {
             if (a === 'Segurança') return -1;
             if (b === 'Segurança') return 1;
-            if (a === 'Auditoria') return 1; // Auditoria geralmente no final
-            if (b === 'Auditoria') return -1;
+            if (a === 'Monitoramento') return 1; // Monitoramento no final
+            if (b === 'Monitoramento') return -1;
             return a.localeCompare(b);
         });
     }, [allowedContracts]);
@@ -102,7 +104,14 @@ export const SecurityModule: React.FC = () => {
                 <div className="max-w-6xl mx-auto w-full py-4 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     {currentContracts.length > 0 ? (
                         currentContracts.map(contract => (
-                            <div key={contract.id} className="contract-wrapper">
+                            <div key={contract.id} className="contract-section mb-12">
+                                {contract.label && (
+                                    <div className="flex items-center gap-4 mb-6 opacity-80">
+                                        <div className="h-[1px] w-8 bg-emerald-500/40" />
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400/90">{contract.label}</h3>
+                                        <div className="h-[1px] flex-1 bg-white/5" />
+                                    </div>
+                                )}
                                 <DynamicRenderer 
                                     contracts={[contract] as any} 
                                     module={AuthModuleManifest as any} 

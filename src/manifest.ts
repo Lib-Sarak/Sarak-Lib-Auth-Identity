@@ -59,7 +59,8 @@ export const AuthModuleManifest: {
       "password_reset_confirm": "/password-reset/confirm",
       "oauth_login": "/oauth/{provider}/login",
       "oauth_callback": "/oauth/{provider}/callback",
-      "oauth_status": "/oauth/status"
+      "oauth_status": "/oauth/status",
+      "sessions_revoke": "/sessions/{session_id}"
     }
   },
   "capabilities": {
@@ -86,7 +87,7 @@ export const AuthModuleManifest: {
       "type": "STATS",
       "label": "Métricas de Soberania",
       "endpoint": "v1.interactions",
-      "tab": "Auditoria",
+      "tab": "Monitoramento",
       "requiredPermission": "rbac:view",
       "actions": [],
       "mapping": {
@@ -106,28 +107,36 @@ export const AuthModuleManifest: {
     {
       "id": "audit_sessions_table",
       "type": "TABLE",
-      "label": "Detalhamento de Sessões Ativas",
+      "label": "Sessões Ativas em Tempo Real",
       "endpoint": "v1.interactions",
-      "tab": "Auditoria",
+      "tab": "Monitoramento",
       "requiredPermission": "rbac:view",
-      "actions": [],
       "config": {
         "params": { "scope": "sessions" },
-        "columns": ["ip_address", "user_agent", "created_at", "expires_at"]
+        "columns": ["username", "ip_address", "user_agent", "created_at"],
+        "actions": [
+          { 
+            "id": "revoke", 
+            "label": "Revogar Acesso", 
+            "endpoint": "v1.sessions_revoke", 
+            "method": "DELETE",
+            "confirm": "Deseja realmente derrubar esta sessão?"
+          }
+        ]
       },
       "mapping": {
+        "username": "Usuário",
         "ip_address": "Endereço IP",
-        "user_agent": "Dispositivo / Navegador",
-        "created_at": "Início",
-        "expires_at": "Expiração"
+        "user_agent": "Dispositivo",
+        "created_at": "Início da Sessão"
       }
     },
     {
       "id": "audit_logins_table",
       "type": "TABLE",
-      "label": "Histórico de Logins (24h)",
+      "label": "Histórico de Acessos (Logins)",
       "endpoint": "v1.interactions",
-      "tab": "Auditoria",
+      "tab": "Monitoramento",
       "requiredPermission": "rbac:view",
       "actions": [],
       "config": {
@@ -144,9 +153,9 @@ export const AuthModuleManifest: {
     {
       "id": "audit_attacks_table",
       "type": "TABLE",
-      "label": "Registro de Ataques / Falhas",
+      "label": "Incidentes e Bloqueios",
       "endpoint": "v1.interactions",
-      "tab": "Auditoria",
+      "tab": "Monitoramento",
       "requiredPermission": "rbac:view",
       "actions": [],
       "config": {
@@ -164,7 +173,7 @@ export const AuthModuleManifest: {
       "type": "TABLE",
       "label": "Diretório de Identidades Ativas",
       "endpoint": "v1.users",
-      "tab": "Usuários",
+      "tab": "Identidades",
       "requiredPermission": "user:manage",
       "config": {
         "actions": [
@@ -179,41 +188,63 @@ export const AuthModuleManifest: {
               ]
             }
           },
-          { "id": "ban", "label": "Bloquear", "endpoint": "v1.user_detail", "method": "DELETE" }
+          { "id": "ban", "label": "Desativar", "endpoint": "v1.user_detail", "method": "DELETE", "confirm": "Deseja desativar este usuário?" }
         ],
         "columns": ["username", "email", "role_names", "is_active"]
       },
       "mapping": {
         "username": "Identidade",
         "email": "E-mail Principal",
-        "role_names": "Papel",
-        "is_active": "Acesso"
+        "role_names": "Papéis",
+        "is_active": "Status"
       }
     },
     {
       "id": "rbac_matrix_grid",
       "type": "MANAGEMENT_GRID",
-      "label": "Matriz de Papéis Soberanos",
+      "label": "Níveis de Acesso (Papéis)",
       "tab": "Governança",
       "endpoint": "v1.roles",
+      "groupBy": "type",
       "requiredPermission": "rbac:manage",
-      "actions": [],
+      "actions": [
+        { 
+          "id": "create", 
+          "label": "Novo Papel", 
+          "endpoint": "v1.roles", 
+          "method": "POST",
+          "form": {
+            "fields": [
+              { "name": "name", "label": "Nome do Papel (ex: ADMIN)", "type": "TEXT" },
+              { "name": "description", "label": "Descrição", "type": "TEXT" }
+            ]
+          }
+        },
+        { 
+          "id": "update", 
+          "label": "Salvar Alterações", 
+          "endpoint": "v1.roles", 
+          "method": "POST" 
+        }
+      ],
       "mapping": {
         "id": "id",
         "title": "name",
         "description": "description",
         "tags": "permission_tags",
+        "permissions": "permission_names",
         "isActive": "is_active"
       },
       "formMapping": {
         "name": "Nome do Papel",
         "description": "Finalidade do Papel",
-        "permission_names": "Regras Aplicadas"
+        "permission_names": "Regras Técnicas Aplicadas"
       },
       "config": {
         "allowCreate": true,
         "tagField": "name",
-        "tagSource": "v1.permissions"
+        "tagSource": "v1.permissions",
+        "permissionsEndpoint": "v1.permissions"
       }
     },
     {
@@ -223,16 +254,43 @@ export const AuthModuleManifest: {
       "tab": "Governança",
       "endpoint": "v1.permissions",
       "requiredPermission": "rbac:manage",
-      "actions": [],
+      "actions": [
+        { 
+          "id": "create", 
+          "label": "Nova Regra", 
+          "endpoint": "v1.permissions", 
+          "method": "POST",
+          "form": {
+            "fields": [
+              { "name": "name", "label": "Identificador (ex: user:manage)", "type": "TEXT" },
+              { "name": "description", "label": "Descrição", "type": "TEXT" }
+            ]
+          }
+        },
+        { 
+          "id": "edit", 
+          "label": "Editar Regra", 
+          "endpoint": "v1.permissions", 
+          "method": "POST",
+          "form": {
+            "fields": [
+              { "name": "name", "label": "Identificador", "type": "TEXT" },
+              { "name": "description", "label": "Descrição", "type": "TEXT" }
+            ]
+          }
+        }
+      ],
       "config": {
         "allowCreate": true,
         "columns": ["name", "description"]
       },
       "mapping": {
+        "id": "id",
         "name": "Identificador da Regra",
         "description": "O que esta regra permite?"
       }
-    },
+    }
+,
     {
       "id": "oauth_sso_config",
       "type": "CARD_GRID",
@@ -254,40 +312,6 @@ export const AuthModuleManifest: {
       "endpoint": "v1.mfa_orch",
       "actions": [],
       "mapping": {}
-    },
-    {
-      "id": "account_security_form",
-      "type": "FORM",
-      "label": "Gestão de Credenciais",
-      "tab": "Minha Conta",
-      "endpoint": "v1.change_password",
-      "mapping": {
-        "current_password": "Senha Atual",
-        "new_password": "Nova Senha"
-      },
-      "actions": [
-        { "label": "Atualizar Chave", "endpoint": "v1.change_password", "method": "POST" }
-      ]
-    },
-    {
-      "id": "user_profile_form",
-      "type": "FORM",
-      "label": "Informações Pessoais",
-      "tab": "Minha Conta",
-      "endpoint": "v1.preferences",
-      "mapping": {
-        "full_name": "Nome Completo",
-        "address_street": "Logradouro (Rua/Av)",
-        "address_number": "Número",
-        "address_complement": "Complemento",
-        "address_city": "Cidade",
-        "address_state": "Estado / UF",
-        "address_zip": "CEP",
-        "address_country": "País"
-      },
-      "actions": [
-        { "label": "Salvar Perfil", "endpoint": "v1.preferences", "method": "PATCH" }
-      ]
     }
   ],
   "components": {}
