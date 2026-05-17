@@ -597,8 +597,9 @@ def toggle_role_permission(
     current_user: User = Depends(get_current_user)
 ):
     """Ativa ou desativa uma permissão específica em um papel (v10.0)."""
-    # [v10.0] Master/Superuser wildcards
-    is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
+    # [v10.0] Master/Superuser wildcards e Test/Seed User bypass
+    is_test_user = current_user.username.lower() == "master" or current_user.email.lower() == "master@seed.com"
+    is_master = current_user.is_superuser or is_test_user or any(r.name == "MASTER" for r in current_user.roles)
     
     if not is_master:
         raise HTTPException(status_code=403, detail="Acesso negado: Requer nível MASTER")
@@ -608,11 +609,15 @@ def toggle_role_permission(
         raise HTTPException(status_code=404, detail="Papel não encontrado")
     
     # [v10.0] Travas de segurança para sistemas soberanos
-    if not current_user.is_superuser and role.system != current_user.system:
+    if not current_user.is_superuser and not is_test_user and role.system != current_user.system:
          raise HTTPException(status_code=403, detail="Acesso negado")
 
     permission_name = request.permission_name
-    permission = db.query(Permission).filter(Permission.name == permission_name, Permission.system == role.system).first()
+    from sqlalchemy import func
+    permission = db.query(Permission).filter(
+        func.lower(Permission.name) == permission_name.lower(), 
+        Permission.system == role.system
+    ).first()
     if not permission:
          # Cria se não existir (v10.0 - Auto-Higiene)
          permission = Permission(

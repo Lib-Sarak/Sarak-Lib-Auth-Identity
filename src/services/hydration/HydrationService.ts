@@ -36,13 +36,14 @@ export class HydrationService {
             }
 
             // 2. Recupera dados do usuário logado (masked)
-            const user = await GovernanceService.getMe();
+            const meResult = await GovernanceService.getMe();
             
-            if (!user) {
+            if (!meResult.success || !meResult.user) {
                 this.clearSystemSession(system);
                 return { isAuthenticated: false, user: null };
             }
 
+            const user = meResult.user;
             console.info(`[Identity:Hydration] System ${system} hydrated successfully for user: ${user.username}`);
             return { isAuthenticated: true, user };
 

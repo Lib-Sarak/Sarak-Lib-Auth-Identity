@@ -29,6 +29,7 @@ export const AuthModuleManifest: {
   endpoints: any;
   capabilities: any;
   visualContracts: VisualContract[];
+  components?: any;
 } = {
   "contract": "v10.0",
   "id": "sarak-lib-auth-identity",
@@ -201,9 +202,9 @@ export const AuthModuleManifest: {
       }
     },
     {
-      "id": "rbac_expandable_matrix",
+      "id": "rbac_matrix_grid",
       "type": "EXPANDABLE_MATRIX",
-      "label": "Matriz de Governança (Papéis x Permissões)",
+      "label": "Controle de Acesso Soberano (RBAC)",
       "tab": "Governança",
       "endpoint": "v1.roles",
       "requiredPermission": "rbac:manage",
@@ -211,9 +212,22 @@ export const AuthModuleManifest: {
         "subItemsEndpoint": "v1.permissions",
         "toggleEndpoint": "v1.toggle_role_permission",
         "mappingField": "permission_names",
-        "subItemIdentifier": "name",
-        "parentLabel": "name",
-        "parentDescription": "description"
+        "subItemIdentifier": "id",
+        "manifest": {
+          "levels": {
+            "0": {
+              "variant": "card",
+              "hasToggle": true,
+              "hasExpand": true,
+              "defaultExpanded": false
+            },
+            "1": {
+              "variant": "switch",
+              "hasToggle": true,
+              "hasExpand": false
+            }
+          }
+        }
       }
     },
     {

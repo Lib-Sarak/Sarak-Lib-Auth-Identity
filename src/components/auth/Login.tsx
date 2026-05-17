@@ -34,7 +34,7 @@ export const Login: React.FC<{ branding?: Branding, onSuccess?: () => void }> = 
     const location = useLocation();
 
     // Recupera o manifesto dinâmico (fundido pelo plugin)
-    const activeModule = registeredModules?.find(m => m.id === 'sarak-lib-auth-identity' || m.id === 'auth');
+    const activeModule = registeredModules?.find((m: any) => m.id === 'sarak-lib-auth-identity' || m.id === 'auth');
     const manifest = (activeModule?.manifest || AuthModuleManifest) as typeof AuthModuleManifest;
     const oauthConfig = manifest.capabilities?.security?.oauth;
 

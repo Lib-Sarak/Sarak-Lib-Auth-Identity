@@ -59,7 +59,7 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
                 }
 
                 setToken(result.token);
-                setUser(result.user);
+                setUser(result.user as any);
                 localStorage.setItem(`${system}_token`, result.token!);
                 localStorage.setItem(`${system}_refresh_token`, result.refreshToken!);
                 localStorage.setItem(`${system}_user`, JSON.stringify(result.user));
@@ -85,7 +85,7 @@ export const AuthProvider = ({ children, system = 'global' }: { children: ReactN
             const result = await AuthFlowService.verifyMFA(mfaToken, code, system);
             if (result.success) {
                 setToken(result.token!);
-                setUser(result.user);
+                setUser(result.user as any);
                 localStorage.setItem(`${system}_token`, result.token!);
                 localStorage.setItem(`${system}_refresh_token`, result.refreshToken!);
                 localStorage.setItem(`${system}_user`, JSON.stringify(result.user));

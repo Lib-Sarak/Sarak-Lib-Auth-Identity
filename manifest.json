@@ -22,6 +22,9 @@
       "roles": "/roles",
       "permissions": "/permissions",
       "mfa_orch": "/",
+      "mfa_verify": "/login/mfa",
+      "mfa_setup": "/mfa/setup",
+      "mfa_enable": "/mfa/enable",
       "change_password": "/change-password",
       "preferences": "/preferences",
       "password_reset_request": "/password-reset/request",
@@ -168,38 +171,31 @@
     },
     {
       "id": "rbac_matrix_grid",
-      "type": "MANAGEMENT_GRID",
-      "label": "Matriz de Papéis e Níveis",
+      "type": "EXPANDABLE_MATRIX",
+      "label": "Controle de Acesso Soberano (RBAC)",
       "tab": "Governança",
       "endpoint": "v1.roles",
       "requiredPermission": "rbac:manage",
-      "groupBy": "level",
-      "ghostGroups": [
-        { "id": 10, "label": "USUÁRIOS", "name": "USUÁRIOS" },
-        { "id": 20, "label": "LEITORES", "name": "LEITORES" },
-        { "id": 30, "label": "EDITORES", "name": "EDITORES" },
-        { "id": 50, "label": "ADMINISTRADORES", "name": "ADMINISTRADORES" },
-        { "id": 100, "label": "SUPREMO (MASTER)", "name": "SUPREMO (MASTER)" }
-      ],
-      "actions": [],
-      "mapping": {
-        "id": "id",
-        "title": "name",
-        "level": "level",
-        "description": "description",
-        "tags": "permission_tags",
-        "isActive": "is_active"
-      },
-      "formMapping": {
-        "name": "Nome do Papel",
-        "level": "Nível Hierárquico (10-100)",
-        "description": "Finalidade do Papel",
-        "permission_names": "Regras Aplicadas"
-      },
       "config": {
-        "allowCreate": true,
-        "tagField": "name",
-        "tagSource": "v1.permissions"
+        "subItemsEndpoint": "v1.permissions",
+        "toggleEndpoint": "v1.toggle_role_permission",
+        "mappingField": "permission_names",
+        "subItemIdentifier": "id",
+        "manifest": {
+          "levels": {
+            "0": {
+              "variant": "card",
+              "hasToggle": true,
+              "hasExpand": true,
+              "defaultExpanded": false
+            },
+            "1": {
+              "variant": "switch",
+              "hasToggle": true,
+              "hasExpand": false
+            }
+          }
+        }
       }
     },
     {
