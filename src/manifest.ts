@@ -60,7 +60,8 @@ export const AuthModuleManifest: {
       "oauth_login": "/oauth/{provider}/login",
       "oauth_callback": "/oauth/{provider}/callback",
       "oauth_status": "/oauth/status",
-      "sessions_revoke": "/sessions/{session_id}"
+      "sessions_revoke": "/sessions/{session_id}",
+      "toggle_role_permission": "/roles/{role_id}/toggle-permission"
     }
   },
   "capabilities": {
@@ -200,51 +201,19 @@ export const AuthModuleManifest: {
       }
     },
     {
-      "id": "rbac_matrix_grid",
-      "type": "MANAGEMENT_GRID",
-      "label": "Níveis de Acesso (Papéis)",
+      "id": "rbac_expandable_matrix",
+      "type": "EXPANDABLE_MATRIX",
+      "label": "Matriz de Governança (Papéis x Permissões)",
       "tab": "Governança",
       "endpoint": "v1.roles",
-      "groupBy": "type",
       "requiredPermission": "rbac:manage",
-      "actions": [
-        { 
-          "id": "create", 
-          "label": "Novo Papel", 
-          "endpoint": "v1.roles", 
-          "method": "POST",
-          "form": {
-            "fields": [
-              { "name": "name", "label": "Nome do Papel (ex: ADMIN)", "type": "TEXT" },
-              { "name": "description", "label": "Descrição", "type": "TEXT" }
-            ]
-          }
-        },
-        { 
-          "id": "update", 
-          "label": "Salvar Alterações", 
-          "endpoint": "v1.roles", 
-          "method": "POST" 
-        }
-      ],
-      "mapping": {
-        "id": "id",
-        "title": "name",
-        "description": "description",
-        "tags": "permission_tags",
-        "permissions": "permission_names",
-        "isActive": "is_active"
-      },
-      "formMapping": {
-        "name": "Nome do Papel",
-        "description": "Finalidade do Papel",
-        "permission_names": "Regras Técnicas Aplicadas"
-      },
       "config": {
-        "allowCreate": true,
-        "tagField": "name",
-        "tagSource": "v1.permissions",
-        "permissionsEndpoint": "v1.permissions"
+        "subItemsEndpoint": "v1.permissions",
+        "toggleEndpoint": "v1.toggle_role_permission",
+        "mappingField": "permission_names",
+        "subItemIdentifier": "name",
+        "parentLabel": "name",
+        "parentDescription": "description"
       }
     },
     {
@@ -263,18 +232,6 @@ export const AuthModuleManifest: {
           "form": {
             "fields": [
               { "name": "name", "label": "Identificador (ex: user:manage)", "type": "TEXT" },
-              { "name": "description", "label": "Descrição", "type": "TEXT" }
-            ]
-          }
-        },
-        { 
-          "id": "edit", 
-          "label": "Editar Regra", 
-          "endpoint": "v1.permissions", 
-          "method": "POST",
-          "form": {
-            "fields": [
-              { "name": "name", "label": "Identificador", "type": "TEXT" },
               { "name": "description", "label": "Descrição", "type": "TEXT" }
             ]
           }

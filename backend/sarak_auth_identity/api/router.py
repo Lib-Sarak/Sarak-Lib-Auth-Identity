@@ -166,6 +166,9 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+class PermissionToggleRequest(BaseModel):
+    permission_name: str
+
 class RoleCreateUpdate(BaseModel):
     name: str
     description: Optional[str] = None
@@ -586,6 +589,52 @@ def create_role(data: RoleCreateUpdate, db: Session = Depends(get_db), current_u
         
     raise HTTPException(status_code=403, detail="Acesso negado: Apenas nível MASTER pode alterar a matriz RBAC")
 
+@router.post("/roles/{role_id}/toggle-permission")
+def toggle_role_permission(
+    role_id: uuid.UUID, 
+    request: PermissionToggleRequest, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Ativa ou desativa uma permissão específica em um papel (v10.0)."""
+    # [v10.0] Master/Superuser wildcards
+    is_master = current_user.is_superuser or any(r.name == "MASTER" for r in current_user.roles)
+    
+    if not is_master:
+        raise HTTPException(status_code=403, detail="Acesso negado: Requer nível MASTER")
+    
+    role = db.query(Role).filter(Role.role_id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Papel não encontrado")
+    
+    # [v10.0] Travas de segurança para sistemas soberanos
+    if not current_user.is_superuser and role.system != current_user.system:
+         raise HTTPException(status_code=403, detail="Acesso negado")
+
+    permission_name = request.permission_name
+    permission = db.query(Permission).filter(Permission.name == permission_name, Permission.system == role.system).first()
+    if not permission:
+         # Cria se não existir (v10.0 - Auto-Higiene)
+         permission = Permission(
+             permission_id=uuid.uuid4(),
+             name=permission_name,
+             system=role.system,
+             description=f"Auto-generated for {permission_name}"
+         )
+         db.add(permission)
+         db.flush()
+
+    if permission in role.permissions:
+        role.permissions.remove(permission)
+        action = "removed"
+    else:
+        role.permissions.append(permission)
+        action = "added"
+    
+    db.commit()
+    return {"status": "success", "action": action, "role": role.name, "permission": permission_name}
+
+
 @router.put("/users/{user_id}/roles")
 def assign_role(user_id: uuid.UUID, role_names: List[str], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Atribui papéis a um usuário específico."""
@@ -604,8 +653,44 @@ def list_permissions(db: Session = Depends(get_db), current_user: User = Depends
         query = query.filter(Permission.system == current_user.system)
     
     perms = query.all()
-    return [{"id": str(p.permission_id), "name": p.name, "description": p.description} for p in perms]
-
+    
+    # [v10.0] Estrutura estrita de 2 Níveis (Regra -> Permissões) para Governança
+    tree = []
+    lookup = {}
+    
+    # Ordena para garantir consistência visual
+    sorted_perms = sorted(perms, key=lambda x: x.name.lower())
+    
+    for p in sorted_perms:
+        # Divide apenas no primeiro ':' para garantir no máximo 2 níveis
+        parts = p.name.split(':', 1)
+        
+        # Normaliza a chave para evitar duplicação ("Audit" e "audit" viram o mesmo módulo)
+        module_key = parts[0].lower().strip()
+        
+        if module_key not in lookup:
+            node = {
+                "id": module_key,
+                "name": module_key.title(),
+                "description": f"Módulo/Regra: {module_key.title()}",
+                "children": []
+            }
+            lookup[module_key] = node
+            tree.append(node)
+            
+        if len(parts) > 1:
+            # É uma permissão específica dentro da regra
+            sub_name = parts[1].replace(":", " ").replace("_", " ").title()
+            lookup[module_key]["children"].append({
+                "id": p.name.lower(),
+                "name": sub_name,
+                "description": p.description
+            })
+        else:
+            # Atualiza a descrição se a regra raiz foi definida explicitamente
+            lookup[module_key]["description"] = p.description
+            
+    return tree
 @router.post("/permissions")
 def create_or_update_permission(data: PermissionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Cria ou atualiza uma regra técnica de permissão (v10.0)."""
