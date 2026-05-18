@@ -216,13 +216,13 @@ export const AuthModuleManifest: {
         "manifest": {
           "levels": {
             "0": {
-              "variant": "card",
-              "hasToggle": true,
+              "variant": "row",
+              "hasToggle": false,
               "hasExpand": true,
               "defaultExpanded": false
             },
             "1": {
-              "variant": "switch",
+              "variant": "row",
               "hasToggle": true,
               "hasExpand": false
             }

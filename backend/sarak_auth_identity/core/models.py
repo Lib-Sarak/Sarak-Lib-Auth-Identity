@@ -64,6 +64,11 @@ class Role(Base):
     permissions = relationship("Permission", secondary=role_permissions, backref="roles")
 
     @property
+    def id(self):
+        """Standard id property for Casbin/Pydantic serialization compatibility."""
+        return str(self.role_id)
+
+    @property
     def permission_names(self):
         """Helper to return simple list of permission names (v8.1)."""
         return [p.name for p in self.permissions]

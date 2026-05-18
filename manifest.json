@@ -21,6 +21,7 @@
       "interactions": "/interactions",
       "roles": "/roles",
       "permissions": "/permissions",
+      "toggle_role_permission": "/roles/{role_id}/toggle-permission",
       "mfa_orch": "/",
       "mfa_verify": "/login/mfa",
       "mfa_setup": "/mfa/setup",
@@ -184,13 +185,13 @@
         "manifest": {
           "levels": {
             "0": {
-              "variant": "card",
-              "hasToggle": true,
+              "variant": "row",
+              "hasToggle": false,
               "hasExpand": true,
               "defaultExpanded": false
             },
             "1": {
-              "variant": "switch",
+              "variant": "row",
               "hasToggle": true,
               "hasExpand": false
             }

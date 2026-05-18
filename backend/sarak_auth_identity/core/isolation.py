@@ -36,7 +36,10 @@ def setup_sovereign_isolation():
             # Instead of 'object', we target only the mappers involved in the current query.
             # This fixes the Python 3.14 TypeError: unbound method type.__subclasses__()
             for mapper in orm_execute_state.all_mappers:
-                if hasattr(mapper.class_, "user_id"):
+                # Exclui a própria classe User do filtro automático de user_id. 
+                # Usuários são isolados por tenant/system em nível de rota/policy, permitindo
+                # que administradores de sistema gerenciem identidades do seu próprio inquilino.
+                if mapper.class_.__name__ != "User" and hasattr(mapper.class_, "user_id"):
                     # Apply criteria only to models that actually own user data
                     orm_execute_state.statement = orm_execute_state.statement.options(
                         with_loader_criteria(
