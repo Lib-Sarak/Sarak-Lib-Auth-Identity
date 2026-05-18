@@ -34,27 +34,29 @@ def seed_auth_identity(engine: Engine):
     Session = sessionmaker(bind=engine)
     db = Session()
     try:
-        # Permissões Base
+        # Permissões Base (Refined for Enterprise Security v9.5)
         permissions_data = [
-            {"name": "identity:view", "description": "Ver perfis e sessões (Leitura)"},
-            {"name": "user:manage", "description": "Gestão de usuários (Criar/Editar/Senhas)"},
-            {"name": "rbac:manage", "description": "Configuração total de regras RBAC"},
-            {"name": "rbac:view", "description": "Visualizar matriz de permissões"},
-            {"name": "audit:view", "description": "Ver logs e interações"},
-            {"name": "audit:full", "description": "Controle total de auditoria e sessões"},
-            {"name": "system:settings", "description": "Alterar configurações globais"},
-            {"name": "content:manage", "description": "Gerenciar fluxos e dados de negócio"},
-            {"name": "service:edit", "description": "Configurar parâmetros operacionais"},
-            {"name": "service:execute", "description": "Execução básica de serviços"}
+            {"name": "identity:view", "description": "Ver perfis, status de sessões e metadados de identidade"},
+            {"name": "user:manage", "description": "Gestão de ciclo de vida (Criar/Editar/Suspender usuários)"},
+            {"name": "user:security", "description": "Gestão de credenciais (Reset de senhas/MFA/Tokens)"},
+            {"name": "rbac:manage", "description": "Controle total da matriz de permissões e papéis"},
+            {"name": "rbac:view", "description": "Visualizar matriz de governança e auditoria de regras"},
+            {"name": "audit:view", "description": "Consulta de logs de interação e trilhas de auditoria"},
+            {"name": "audit:config", "description": "Configuração de retenção de logs e exportação legal"},
+            {"name": "system:config", "description": "Alteração de parâmetros globais e operacionais (Não Sensíveis)"},
+            {"name": "security:secrets", "description": "Gestão de chaves de API, OAuth e segredos criptográficos"},
+            {"name": "content:manage", "description": "Gerenciar fluxos de dados e metadados de negócio"},
+            {"name": "service:edit", "description": "Configurar parâmetros técnicos de execução de serviços"},
+            {"name": "service:execute", "description": "Capacidade de acionar funcionalidades finais do sistema"}
         ]
 
-        # Definição de Papéis
+        # Definição de Papéis (Refined Hierarchy)
         roles_config = [
-            {"name": "MASTER", "description": "Controle total", "perms": [p["name"] for p in permissions_data]},
-            {"name": "ADMIN", "description": "Gestão operacional", "perms": ["identity:view", "user:manage", "audit:view"]},
-            {"name": "EDITOR", "description": "Gestão técnica", "perms": ["identity:view", "content:manage", "service:edit"]},
-            {"name": "LEITOR", "description": "Visualização", "perms": ["audit:view", "rbac:view", "identity:view"]},
-            {"name": "USER", "description": "Consumidor final", "perms": ["service:execute"]}
+            {"name": "MASTER", "description": "Autoridade Soberana - Controle absoluto e Bypass", "perms": [p["name"] for p in permissions_data]},
+            {"name": "ADMIN", "description": "Gestor de Identidade e Segurança", "perms": ["identity:view", "user:manage", "user:security", "rbac:view", "audit:view", "audit:config", "security:secrets"]},
+            {"name": "EDITOR", "description": "Gestor Técnico e de Conteúdo", "perms": ["identity:view", "content:manage", "service:edit", "system:config"]},
+            {"name": "LEITOR", "description": "Auditor de Conformidade", "perms": ["audit:view", "rbac:view", "identity:view"]},
+            {"name": "USER", "description": "Consumidor Final", "perms": ["service:execute"]}
         ]
 
         # Definição de Usuários Master

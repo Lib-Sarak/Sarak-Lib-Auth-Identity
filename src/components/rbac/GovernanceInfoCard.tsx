@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Info, ArrowDown, Zap, Edit3, Eye, User, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Shield, Info, ArrowDown, Zap, Edit3, Eye, User, X, CheckCircle2, AlertCircle, BookOpen, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface RoleDetail {
@@ -13,6 +13,12 @@ interface RoleDetail {
     inheritance: string;
     capabilities: string[];
     restrictions: string[];
+}
+
+interface TechPermission {
+    key: string;
+    label: string;
+    description: string;
 }
 
 export const GovernanceInfoCard: React.FC = () => {
@@ -127,36 +133,49 @@ export const GovernanceInfoCard: React.FC = () => {
         }
     ];
 
+    const techPermissions: TechPermission[] = [
+        { key: 'identity:view', label: 'Identidade: Visualização', description: 'Visualização de perfis, status de sessões e metadados de identidade.' },
+        { key: 'user:manage', label: 'Usuário: Gestão', description: 'Gestão de ciclo de vida (Criar, Editar e Suspender usuários).' },
+        { key: 'user:security', label: 'Usuário: Segurança', description: 'Gestão de credenciais (Reset de senhas, MFA e Tokens de acesso).' },
+        { key: 'rbac:manage', label: 'RBAC: Gestão', description: 'Controle total da matriz de permissões, papéis e regras de acesso.' },
+        { key: 'rbac:view', label: 'RBAC: Visualização', description: 'Visualizar matriz de governança e auditoria de regras aplicadas.' },
+        { key: 'audit:view', label: 'Auditoria: Visualização', description: 'Consulta de logs de interação e trilhas de auditoria do sistema.' },
+        { key: 'audit:config', label: 'Auditoria: Conformidade', description: 'Configuração de retenção de logs e exportação para conformidade legal.' },
+        { key: 'system:config', label: 'Sistema: Configurações', description: 'Alteração de parâmetros operacionais e configurações globais não sensíveis.' },
+        { key: 'security:secrets', label: 'Segurança: Segredos', description: 'Gestão de chaves de API, tokens OAuth e segredos criptográficos.' },
+        { key: 'content:manage', label: 'Conteúdo: Gestão', description: 'Gerenciar fluxos de dados, metadados de negócio e ativos digitais.' },
+        { key: 'service:edit', label: 'Serviço: Edição', description: 'Configurar parâmetros técnicos de execução e limites de serviços.' },
+        { key: 'service:execute', label: 'Serviço: Execução', description: 'Capacidade de acionar as funcionalidades finais do ecossistema.' }
+    ];
+
     return (
-        <div className="mb-8">
+        <div className="mb-12 space-y-6">
+            
+            {/* 1. CARD DE PAPÉIS (CONTROLE SOBERANO) */}
             <motion.div 
+                key="rbac-roles-card"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-zinc-950/40 border border-white/5 rounded-3xl overflow-hidden shadow-2xl"
             >
-                {/* Header */}
                 <div className="p-6 border-b border-white/5 bg-white/5 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                            <Info size={20} />
+                            <Shield size={20} />
                         </div>
                         <div>
-                            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">Arquitetura de Governança</h2>
-                            <p className="text-[10px] text-white/40 font-medium uppercase tracking-wider">Clique nos cards para detalhes profundos</p>
+                            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">Papéis de Acesso (RBAC)</h2>
+                            <p className="text-[10px] text-white/40 font-medium uppercase tracking-wider">Clique nos cards para detalhes de capacidades e limites</p>
                         </div>
-                    </div>
-                    <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/40 border border-white/5">
-                        <Shield size={12} className="text-emerald-400" />
-                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400/70">RBAC SOBERANO V9.0</span>
                     </div>
                 </div>
 
-                {/* Content */}
-                <div className="p-6 space-y-6">
+                <div className="p-6">
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                         {roles.map((role, index) => (
-                            <div key={role.name} className="relative flex flex-col h-full">
+                            <div key={`role-col-${role.name}`} className="relative flex flex-col h-full">
                                 <motion.div 
+                                    key={`role-card-${role.name}`}
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
                                     onClick={() => setSelectedRole(role)}
@@ -179,12 +198,6 @@ export const GovernanceInfoCard: React.FC = () => {
                                     <p className="text-[10px] text-white/40 leading-relaxed font-medium line-clamp-3">
                                         {role.description}
                                     </p>
-                                    <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
-                                        <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Herança:</span>
-                                        <span className="text-[8px] font-black text-white/50 uppercase tracking-widest bg-black/40 px-2 py-0.5 rounded-md border border-white/5">
-                                            {role.inheritance}
-                                        </span>
-                                    </div>
                                 </motion.div>
                                 
                                 {index < 4 && index !== 3 && (
@@ -195,29 +208,100 @@ export const GovernanceInfoCard: React.FC = () => {
                             </div>
                         ))}
                     </div>
+                </div>
+            </motion.div>
 
-                    {/* Footer / Hierarchy Note */}
-                    <div className="p-4 rounded-2xl bg-black/40 border border-white/5 flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
-                        <div className="p-3 rounded-full bg-white/5 text-white/40">
-                            <ArrowDown size={18} />
+            {/* 2. CARD DE HIERARQUIA E HERANÇA */}
+            <motion.div 
+                key="rbac-hierarchy-card"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-zinc-950/40 border border-white/5 rounded-3xl overflow-hidden shadow-2xl p-6"
+            >
+                <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="h-14 w-14 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 shrink-0">
+                        <ArrowDown size={24} />
+                    </div>
+                    <div>
+                        <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-white mb-2 flex items-center gap-2">
+                            Fluxo de Herança Vertical
+                            <span className="text-[8px] px-2 py-0.5 rounded bg-white/5 text-white/30 border border-white/10">SARK LOGIC</span>
+                        </h4>
+                        <p className="text-[10px] text-white/40 uppercase tracking-widest leading-relaxed">
+                            O ecossistema Sarak utiliza um modelo de <span className="text-white font-bold">Herança em Cascata</span>. 
+                            Papeis de nível superior herdam automaticamente todas as permissões dos níveis inferiores, 
+                            garantindo uma gestão simplificada e segura. O perfil <span className="text-amber-400 font-bold">MASTER</span> opera 
+                            fora da matriz convencional como autoridade de bypass.
+                        </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0 overflow-x-auto pb-2 md:pb-0">
+                        {['MASTER', 'ADMIN', 'EDITOR', 'USER'].map((r, i) => (
+                            <div key={`hierarchy-step-${r}`} className="flex items-center gap-2">
+                                <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-[9px] font-black text-white/40 uppercase tracking-widest">
+                                    {r}
+                                </div>
+                                {i < 3 && <ArrowDown size={12} className="-rotate-90 text-white/10" />}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* 3. CARD DE DICIONÁRIO DE REGRAS TÉCNICAS */}
+            <motion.div 
+                key="rbac-dictionary-card"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-zinc-950/40 border border-white/5 rounded-3xl overflow-hidden shadow-2xl"
+            >
+                <div className="p-6 border-b border-white/5 bg-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                            <BookOpen size={20} />
                         </div>
                         <div>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-white/80">Fluxo de Herança Vertical</h4>
-                            <p className="text-[9px] text-white/40 uppercase tracking-wider leading-relaxed">
-                                Papeis de nível superior herdam automaticamente todas as permissões dos níveis inferiores, 
-                                garantindo uma gestão em cascata simplificada e segura. O perfil <span className="text-amber-400 font-bold">MASTER</span> opera 
-                                fora da matriz convencional como autoridade de bypass.
-                            </p>
+                            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">Dicionário de Regras Técnicas</h2>
+                            <p className="text-[10px] text-white/40 font-medium uppercase tracking-wider">Mapeamento funcional das chaves de acesso do sistema</p>
                         </div>
+                    </div>
+                    <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/5 flex items-center gap-2">
+                        <Key size={12} className="text-blue-400" />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-blue-400/70">DICTIONARY V1.0</span>
+                    </div>
+                </div>
+
+                <div className="p-6">
+                    <div className="grid grid-cols-1 gap-3">
+                        {techPermissions.map((perm) => (
+                            <div key={`perm-row-${perm.key}`} className="p-4 rounded-2xl bg-black/40 border border-white/5 hover:border-blue-500/20 transition-all group flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
+                                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest min-w-[120px]">{perm.key}</span>
+                                    <div className="h-4 w-px bg-white/5 hidden md:block" />
+                                    <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest">{perm.label}</span>
+                                </div>
+                                <p className="text-[10px] text-white/30 font-medium italic md:text-right">
+                                    "{perm.description}"
+                                </p>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </motion.div>
 
             {/* Detailed Role Modal */}
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
                 {selectedRole && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+                    <motion.div
+                        key="role-modal-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+                    >
                         <motion.div
+                            key="modal-backdrop"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
@@ -225,6 +309,7 @@ export const GovernanceInfoCard: React.FC = () => {
                             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
                         />
                         <motion.div
+                            key={`modal-content-${selectedRole.name}`}
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -276,7 +361,7 @@ export const GovernanceInfoCard: React.FC = () => {
                                             </h4>
                                             <div className="space-y-2">
                                                 {selectedRole.capabilities.map((cap, i) => (
-                                                    <div key={i} className="flex items-start gap-3 p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
+                                                    <div key={`cap-${selectedRole.name}-${i}`} className="flex items-start gap-3 p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
                                                         <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
                                                         <span className="text-[11px] font-medium text-white/70 leading-tight">{cap}</span>
                                                     </div>
@@ -292,7 +377,7 @@ export const GovernanceInfoCard: React.FC = () => {
                                             </h4>
                                             <div className="space-y-2">
                                                 {selectedRole.restrictions.map((res, i) => (
-                                                    <div key={i} className="flex items-start gap-3 p-3 rounded-2xl bg-rose-500/5 border border-rose-500/10">
+                                                    <div key={`res-${selectedRole.name}-${i}`} className="flex items-start gap-3 p-3 rounded-2xl bg-rose-500/5 border border-rose-500/10">
                                                         <div className="h-1.5 w-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
                                                         <span className="text-[11px] font-medium text-white/70 leading-tight">{res}</span>
                                                     </div>
@@ -322,7 +407,7 @@ export const GovernanceInfoCard: React.FC = () => {
                                 </div>
                             </div>
                         </motion.div>
-                    </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
         </div>
