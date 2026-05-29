@@ -95,8 +95,8 @@ export const UserDirectory: React.FC = () => {
             )}
 
             {/* Header Control */}
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white/5 border border-white/5 p-4 rounded-2xl">
-                <div className="relative w-full sm:max-w-xs">
+            <div className="flex flex-col @sm:flex-row gap-4 items-center justify-between bg-white/5 border border-white/5 p-4 rounded-2xl">
+                <div className="relative w-full @sm:max-w-xs">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={14} />
                     <input
                         type="text"
@@ -235,3 +235,4 @@ export const UserDirectory: React.FC = () => {
 };
 
 export default UserDirectory;
+

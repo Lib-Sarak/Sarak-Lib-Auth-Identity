@@ -94,7 +94,7 @@ export const AuditMonitor: React.FC = () => {
             )}
 
             {/* 1. STATS METRICS CARDS GRID */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 @sm:grid-cols-3 gap-6">
                 {/* LOGINS */}
                 <div className="bg-zinc-950/40 border border-white/5 p-5 rounded-3xl flex items-center gap-4 shadow-lg hover:border-emerald-500/20 transition-all">
                     <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -266,3 +266,4 @@ export const AuditMonitor: React.FC = () => {
 };
 
 export default AuditMonitor;
+

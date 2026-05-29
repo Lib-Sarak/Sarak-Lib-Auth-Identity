@@ -171,7 +171,7 @@ export const GovernanceInfoCard: React.FC = () => {
                 </div>
 
                 <div className="p-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 @lg:grid-cols-5 gap-4">
                         {roles.map((role, index) => (
                             <div key={`role-col-${role.name}`} className="relative flex flex-col h-full">
                                 <motion.div 
@@ -201,7 +201,7 @@ export const GovernanceInfoCard: React.FC = () => {
                                 </motion.div>
                                 
                                 {index < 4 && index !== 3 && (
-                                    <div className="hidden lg:flex absolute -right-4 top-1/2 -translate-y-1/2 z-10 text-white/10">
+                                    <div className="hidden @lg:flex absolute -right-4 top-1/2 -translate-y-1/2 z-10 text-white/10">
                                         <ArrowDown className="-rotate-90" size={16} />
                                     </div>
                                 )}
@@ -219,7 +219,7 @@ export const GovernanceInfoCard: React.FC = () => {
                 transition={{ delay: 0.1 }}
                 className="bg-zinc-950/40 border border-white/5 rounded-3xl overflow-hidden shadow-2xl p-6"
             >
-                <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="flex flex-col @md:flex-row items-center gap-6">
                     <div className="h-14 w-14 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 shrink-0">
                         <ArrowDown size={24} />
                     </div>
@@ -235,7 +235,7 @@ export const GovernanceInfoCard: React.FC = () => {
                             fora da matriz convencional como autoridade de bypass.
                         </p>
                     </div>
-                    <div className="flex gap-2 shrink-0 overflow-x-auto pb-2 md:pb-0">
+                    <div className="flex gap-2 shrink-0 overflow-x-auto pb-2 @md:pb-0">
                         {['MASTER', 'ADMIN', 'EDITOR', 'USER'].map((r, i) => (
                             <div key={`hierarchy-step-${r}`} className="flex items-center gap-2">
                                 <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-[9px] font-black text-white/40 uppercase tracking-widest">
@@ -275,13 +275,13 @@ export const GovernanceInfoCard: React.FC = () => {
                 <div className="p-6">
                     <div className="grid grid-cols-1 gap-3">
                         {techPermissions.map((perm) => (
-                            <div key={`perm-row-${perm.key}`} className="p-4 rounded-2xl bg-black/40 border border-white/5 hover:border-blue-500/20 transition-all group flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
+                            <div key={`perm-row-${perm.key}`} className="p-4 rounded-2xl bg-black/40 border border-white/5 hover:border-blue-500/20 transition-all group flex flex-col @md:flex-row @md:items-center justify-between gap-4">
+                                <div className="flex flex-col @md:flex-row @md:items-center gap-2 @md:gap-6">
                                     <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest min-w-[120px]">{perm.key}</span>
-                                    <div className="h-4 w-px bg-white/5 hidden md:block" />
+                                    <div className="h-4 w-px bg-white/5 hidden @md:block" />
                                     <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest">{perm.label}</span>
                                 </div>
-                                <p className="text-[10px] text-white/30 font-medium italic md:text-right">
+                                <p className="text-[10px] text-white/30 font-medium italic @md:text-right">
                                     "{perm.description}"
                                 </p>
                             </div>
@@ -298,7 +298,7 @@ export const GovernanceInfoCard: React.FC = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 @sm:p-6"
                     >
                         <motion.div
                             key="modal-backdrop"
@@ -352,7 +352,7 @@ export const GovernanceInfoCard: React.FC = () => {
                                         </p>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 @md:grid-cols-2 gap-6">
                                         {/* Capabilities */}
                                         <div className="space-y-4">
                                             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 flex items-center gap-2">
@@ -413,3 +413,4 @@ export const GovernanceInfoCard: React.FC = () => {
         </div>
     );
 };
+

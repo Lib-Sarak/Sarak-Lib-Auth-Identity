@@ -60,7 +60,7 @@ export const SecurityModule: React.FC = () => {
     );
 
     return (
-        <div className="sarak-identity-module flex flex-col h-full bg-black/40 rounded-3xl border border-white/5 overflow-hidden shadow-2xl backdrop-blur-sm">
+        <div className="@container sarak-identity-module flex flex-col h-full bg-black/40 rounded-3xl border border-white/5 overflow-hidden shadow-2xl backdrop-blur-sm">
             {/* 1. NAVEGAÇÃO POR ABAS (Derivada do Perfil Autônomo) */}
             <nav className="flex items-center gap-1 p-3 bg-white/5 border-b border-white/5 overflow-x-auto no-scrollbar">
                 {allowedTabs.map(tab => {
@@ -91,7 +91,7 @@ export const SecurityModule: React.FC = () => {
                     {/* Header da Aba */}
                     <div className="flex items-center gap-4 mb-2 opacity-85">
                         <div className="h-[1px] w-8 bg-emerald-500/40" />
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400">
+                        <h3 key={activeTab} className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400">
                             {activeTab === 'Segurança' && 'Configurações de Segurança e Cofre'}
                             {activeTab === 'Identidades' && 'Diretório de Identidades Ativas'}
                             {activeTab === 'Governança' && 'Governança & Controle de Acesso (RBAC)'}
@@ -101,7 +101,7 @@ export const SecurityModule: React.FC = () => {
                     </div>
 
                     {/* Renderização Direta dos Componentes Coesos */}
-                    <div className="tab-content transition-all duration-500">
+                    <div key={`tab-${activeTab}`} className="tab-content transition-all duration-500">
                         {activeTab === 'Segurança' && <SecurityVault />}
                         {activeTab === 'Identidades' && <UserDirectory />}
                         {activeTab === 'Governança' && <RbacGovernance />}

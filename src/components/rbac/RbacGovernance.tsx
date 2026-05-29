@@ -247,7 +247,7 @@ export const RbacGovernance: React.FC = () => {
                                                                             {rule.name}
                                                                         </span>
                                                                         {rule.description && (
-                                                                            <span className="text-[9px] text-white/30 hidden sm:inline">- {rule.description}</span>
+                                                                            <span className="text-[9px] text-white/30 hidden @sm:inline">- {rule.description}</span>
                                                                         )}
                                                                     </div>
                                                                     
@@ -266,7 +266,7 @@ export const RbacGovernance: React.FC = () => {
                                                                             initial={{ opacity: 0, height: 0 }}
                                                                             animate={{ opacity: 1, height: 'auto' }}
                                                                             exit={{ opacity: 0, height: 0 }}
-                                                                            className="overflow-hidden pl-6 pr-3 py-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
+                                                                            className="overflow-hidden pl-6 pr-3 py-2 grid grid-cols-1 @sm:grid-cols-2 @md:grid-cols-3 gap-3"
                                                                         >
                                                                             {rule.children.map(perm => {
                                                                                 const isChecked = role.permission_names.includes(perm.id);
@@ -332,7 +332,7 @@ export const RbacGovernance: React.FC = () => {
                     </h4>
                 </div>
                 
-                <form onSubmit={handleCreatePermission} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                <form onSubmit={handleCreatePermission} className="grid grid-cols-1 @md:grid-cols-2 gap-4 items-end">
                     <div className="space-y-2">
                         <label className="text-[9px] font-black uppercase tracking-widest text-white/40">Nome da Permissão</label>
                         <input
@@ -355,7 +355,7 @@ export const RbacGovernance: React.FC = () => {
                             className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/5 text-xs text-white placeholder-white/20 focus:outline-none focus:border-emerald-500/50"
                         />
                     </div>
-                    <div className="md:col-span-2 flex justify-end">
+                    <div className="@md:col-span-2 flex justify-end">
                         <button
                             type="submit"
                             className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-bold uppercase tracking-wider shadow-lg flex items-center gap-2 transition-colors"
@@ -371,3 +371,4 @@ export const RbacGovernance: React.FC = () => {
 };
 
 export default RbacGovernance;
+

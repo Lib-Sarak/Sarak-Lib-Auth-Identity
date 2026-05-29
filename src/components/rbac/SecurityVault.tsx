@@ -120,7 +120,7 @@ export const SecurityVault: React.FC = () => {
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 @md:grid-cols-2 gap-8">
             {notification && (
                 <div
                     className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-2xl border text-xs font-bold uppercase tracking-wider shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300 ${
@@ -326,3 +326,4 @@ export const SecurityVault: React.FC = () => {
 };
 
 export default SecurityVault;
+

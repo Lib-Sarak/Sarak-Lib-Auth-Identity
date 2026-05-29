@@ -22,3 +22,5 @@ export { maskUserData, maskUserList } from "./utils/masking";
 // Exportação Plug & Play
 export { withIdentityModule } from "./plugin";
 
+// Exportação Estrita do Frontend
+export { default as SarakUI } from './Sarak-UI';
